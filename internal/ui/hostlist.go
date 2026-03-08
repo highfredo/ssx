@@ -95,9 +95,10 @@ func NewHostList(hosts []*sshconfig.Host) HostList {
 	return HostList{list: l, hosts: hosts}
 }
 
-// SetSize resizes the list to fill the available terminal area.
+// SetSize resizes the list to fill the available terminal area,
+// reserving one row at the bottom for the key-hint bar.
 func (h *HostList) SetSize(w, ht int) {
-	h.list.SetSize(w, ht)
+	h.list.SetSize(w, ht-1)
 }
 
 // SelectedHost returns the currently highlighted host, or nil if none.
