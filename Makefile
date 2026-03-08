@@ -29,6 +29,18 @@ fmt:
 clean:
 	rm -rf $(BUILD_DIR)
 
+## snapshot: build a local snapshot with goreleaser (no git tag required)
+snapshot:
+	goreleaser release --snapshot --clean
+
+## release-dry: dry-run a release with goreleaser
+release-dry:
+	goreleaser release --skip=publish --clean
+
+## release: publish a release (requires GITHUB_TOKEN and a git tag)
+release:
+	goreleaser release --clean
+
 ## help: list available targets
 help:
 	@grep -E '^##' Makefile | sed 's/## //' | column -t -s ':'

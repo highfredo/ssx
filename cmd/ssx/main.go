@@ -2,8 +2,8 @@
 //
 // It reads host configuration from ~/.ssh/config, presents an interactive
 // list of hosts, and allows the user to:
-//   - Connect interactively via SSH (key: c)
-//   - Open and close individual port-forwarding tunnels (key: p → tunnel view)
+//   - Connect interactively via SSH (key: enter or c)
+//   - Open and close individual port-forwarding tunnels (key: t → tunnel view)
 //
 // All active tunnels are gracefully terminated when the program exits.
 package main
@@ -13,9 +13,9 @@ import (
 	"log/slog"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/highfredo/ssx/internal/sshconfig"
-	"github.com/highfredo/ssx/internal/tunnel"
+	tea "charm.land/bubbletea/v2"
+	"github.com/highfredo/ssx/internal/appconfig"
+	"github.com/highfredo/ssx/internal/ssh"
 	"github.com/highfredo/ssx/internal/ui"
 )
 
@@ -23,27 +23,15 @@ func main() {
 	setupLogger()
 	slog.Info("ssx starting")
 
-	hosts, err := sshconfig.ParseConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading ~/.ssh/config: %v\n", err)
-		os.Exit(1)
-	}
-	if len(hosts) == 0 {
-		fmt.Fprintln(os.Stderr, "no hosts found in ~/.ssh/config")
-		os.Exit(0)
-	}
+	// Servicios
+	tunnelManager := ssh.NewTunnelManager()
 
-	mgr := tunnel.NewManager()
-	if err := mgr.Discover(hosts); err != nil {
-		slog.Warn("failed to discover existing tunnel processes", "err", err)
-	}
-	model := ui.NewApp(hosts, mgr)
-
-	p := tea.NewProgram(model, tea.WithAltScreen())
-
-	// Wire the tunnel manager's dispatch callback to the Bubble Tea runtime so
-	// unexpected tunnel exits are surfaced as TUI messages.
-	mgr.SetDispatch(func(msg any) { p.Send(msg) })
+	// App
+	model := ui.NewApp(tunnelManager)
+	p := tea.NewProgram(model)
+	tunnelManager.SetEmitter(func() {
+		p.Send(ssh.TunnelStateChangedMsg{})
+	})
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "TUI error: %v\n", err)
@@ -63,6 +51,6 @@ func setupLogger() {
 		return
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: appconfig.Get().SlogLevel(),
 	})))
 }

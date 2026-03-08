@@ -1,0 +1,21 @@
+package base
+
+import "github.com/highfredo/ssx/internal/ssh"
+
+type OpenTunnelForHostPageMsg struct {
+	HostConfig *ssh.HostConfig
+}
+
+type OpenTunnelsOpenPageMsg struct{}
+
+type OpenHostPageMsg struct{}
+
+type OpenInfoPageMsg struct {
+	HostConfig *ssh.HostConfig
+}
+
+type OpenModalMsg struct {
+	Dialog Component
+}
+
+type CloseModalMsg struct{}

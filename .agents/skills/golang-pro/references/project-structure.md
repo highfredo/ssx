@@ -101,7 +101,7 @@ go mod tidy
 ## Internal Packages
 
 ```go
-// internal/ packages can only be imported by code in the parent tree
+// internal-old/ packages can only be imported by code in the parent tree
 
 myproject/
 ├── internal/
@@ -114,10 +114,10 @@ myproject/
         └── user.go
 
 // This works (same project):
-import "github.com/user/myproject/internal/auth"
+import "github.com/user/myproject/internal-old/auth"
 
 // This fails (different project):
-import "github.com/other/project/internal/auth" // Error!
+import "github.com/other/project/internal-old/auth" // Error!
 
 // Internal subdirectories
 myproject/
