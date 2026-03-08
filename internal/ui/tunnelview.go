@@ -114,7 +114,7 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 			}
 
 		// Toggle selected tunnel
-		case "x", "X":
+		case "x", "X", "enter":
 			if t, ok := tv.selectedTunnel(filtered); ok {
 				id := t.ID(tv.host.Name)
 				if tv.mgr.State(id) == tunnel.StateClosed {
@@ -176,7 +176,7 @@ func (tv TunnelView) View() string {
 
 	// ── Help bar ─────────────────────────────────────────────────────────────
 	sb.WriteString("\n")
-	help := helpStyle.Render("[/] filter  [x] toggle open/close  [↑↓ / jk] navigate  [esc] back")
+	help := helpStyle.Render("[/] filter  [enter/x] toggle open/close  [↑↓ / jk] navigate  [esc] back")
 	sb.WriteString(help)
 
 	return sb.String()
