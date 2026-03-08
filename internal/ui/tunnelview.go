@@ -24,6 +24,7 @@ type TunnelView struct {
 	height       int
 	filterInput  textinput.Model
 	filterActive bool
+	portOwners   map[string]*tunnel.PortOwner
 }
 
 // NewTunnelView creates a TunnelView for the given host and manager.
@@ -39,6 +40,7 @@ func NewTunnelView(host *sshconfig.Host, mgr tunnel.Manager, w, h int) TunnelVie
 		width:       w,
 		height:      h,
 		filterInput: filter,
+		portOwners:  make(map[string]*tunnel.PortOwner),
 	}
 }
 
@@ -46,6 +48,11 @@ func NewTunnelView(host *sshconfig.Host, mgr tunnel.Manager, w, h int) TunnelVie
 func (tv *TunnelView) SetSize(w, h int) {
 	tv.width = w
 	tv.height = h
+}
+
+// SetPortOwners stores the latest local port ownership snapshot.
+func (tv *TunnelView) SetPortOwners(owners map[string]*tunnel.PortOwner) {
+	tv.portOwners = owners
 }
 
 // Update handles keyboard input for the tunnel screen.
@@ -207,6 +214,9 @@ func (tv TunnelView) renderRow(idx int, t sshconfig.Tunnel) string {
 	}
 
 	row := cursor + typeLabel + "  " + spec + "  " + stateLabel
+	if owner := tv.portOwners[id]; state == tunnel.StateClosed && owner != nil {
+		row += "  " + errorStyle.Render(fmt.Sprintf("PORT IN USE by %s (pid %d)", owner.Command, owner.PID))
+	}
 
 	if isSelected {
 		// Apply background highlight; preserve inner colour codes.

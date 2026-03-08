@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/highfredo/ssx/internal/sshconfig"
+import (
+	"github.com/highfredo/ssx/internal/sshconfig"
+	"github.com/highfredo/ssx/internal/tunnel"
+)
 
 // SSHExitedMsg is sent when an interactive SSH session (opened with 'c') ends.
 type SSHExitedMsg struct {
@@ -28,6 +31,25 @@ type openTunnelResultMsg struct {
 type requestOpenTunnelMsg struct {
 	hostName string
 	tunnel   sshconfig.Tunnel
+}
+
+type portConflictCheckMsg struct {
+	hostName string
+	tunnel   sshconfig.Tunnel
+	owner    *tunnel.PortOwner
+	Err      error
+}
+
+type killPortOwnerResultMsg struct {
+	hostName string
+	tunnel   sshconfig.Tunnel
+	owner    *tunnel.PortOwner
+	Err      error
+}
+
+type tunnelPortOwnersMsg struct {
+	owners map[string]*tunnel.PortOwner
+	Err    error
 }
 
 // closeTunnelResultMsg reports the result of a Close tunnel request.

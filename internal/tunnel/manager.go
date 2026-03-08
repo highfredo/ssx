@@ -5,6 +5,7 @@
 package tunnel
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -32,6 +36,12 @@ const (
 type ExitedMsg struct {
 	TunnelID string
 	Err      error
+}
+
+// PortOwner identifies a process currently listening on a local TCP port.
+type PortOwner struct {
+	PID     int
+	Command string
 }
 
 // Manager defines the operations for managing SSH tunnel processes.
@@ -56,6 +66,12 @@ type Manager interface {
 	// SetDispatch registers a callback used to send out-of-band messages
 	// (e.g. unexpected tunnel exits) back to the Bubble Tea runtime.
 	SetDispatch(fn func(msg any))
+
+	// LocalPortOwner returns the process listening on a local TCP port, if any.
+	LocalPortOwner(port string) (*PortOwner, error)
+
+	// KillProcess sends SIGTERM to a process by PID.
+	KillProcess(pid int) error
 }
 
 // activeTunnel holds the running SSH process and its cancellation function.
@@ -343,4 +359,85 @@ func (m *manager) persistLocked() error {
 func isProcessAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || err == syscall.EPERM
+}
+
+func (m *manager) KillProcess(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid pid %d", pid)
+	}
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+		return fmt.Errorf("terminate process %d: %w", pid, err)
+	}
+	return nil
+}
+
+func (m *manager) LocalPortOwner(port string) (*PortOwner, error) {
+	if strings.TrimSpace(port) == "" {
+		return nil, fmt.Errorf("port is required")
+	}
+
+	owner, err := localPortOwnerBySS(port)
+	if err == nil || owner != nil {
+		return owner, err
+	}
+
+	owner, lsofErr := localPortOwnerByLsof(port)
+	if lsofErr != nil {
+		return nil, fmt.Errorf("inspect local port %s: ss=%v; lsof=%v", port, err, lsofErr)
+	}
+	return owner, nil
+}
+
+func localPortOwnerBySS(port string) (*PortOwner, error) {
+	cmd := exec.Command("ss", "-ltnpH", fmt.Sprintf("sport = :%s", port))
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	line := strings.TrimSpace(string(out))
+	if line == "" {
+		return nil, nil
+	}
+	return parseSSOwnerLine(line)
+}
+
+var ssUsersPattern = regexp.MustCompile(`users:\(\("([^"]+)",pid=(\d+)`)
+
+func parseSSOwnerLine(line string) (*PortOwner, error) {
+	match := ssUsersPattern.FindStringSubmatch(line)
+	if len(match) < 3 {
+		return nil, nil
+	}
+	pid, err := strconv.Atoi(match[2])
+	if err != nil {
+		return nil, fmt.Errorf("parse pid from ss output: %w", err)
+	}
+	return &PortOwner{
+		PID:     pid,
+		Command: match[1],
+	}, nil
+}
+
+func localPortOwnerByLsof(port string) (*PortOwner, error) {
+	cmd := exec.Command("lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	lines := bytes.Split(out, []byte{'\n'})
+	if len(lines) < 2 || len(bytes.TrimSpace(lines[1])) == 0 {
+		return nil, nil
+	}
+	fields := strings.Fields(string(lines[1]))
+	if len(fields) < 2 {
+		return nil, nil
+	}
+	pid, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return nil, fmt.Errorf("parse pid from lsof output: %w", err)
+	}
+	return &PortOwner{
+		PID:     pid,
+		Command: fields[0],
+	}, nil
 }

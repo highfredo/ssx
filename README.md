@@ -15,6 +15,7 @@ A terminal user interface for managing SSH connections and tunnels, built with [
 | Tunnel view | Press **`t`** — shows all `LocalForward`, `RemoteForward`, `DynamicForward` for a host |
 | Open tunnel | Press **`o`** — starts `ssh -N` in the background |
 | Password auth | Tunnel password is prompted when needed and persisted to `~/.local/state/ssx/passwords.json` |
+| Port conflict handling | Shows process holding a local tunnel port and prompts to kill it before opening |
 | Close tunnel | Press **`x`** — kills the background process |
 | Live state | Each tunnel shows **● OPEN** or **○ CLOSED** in real time |
 | Restart awareness | On startup, ssx restores previously app-opened tunnel PIDs and shows live ones as **OPEN** |
