@@ -5,6 +5,7 @@
 package tunnel
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -118,7 +119,11 @@ func (m *manager) Open(hostName string, t sshconfig.Tunnel, password string) err
 	}
 	m.mu.Unlock()
 
-	args := buildSSHArgs(hostName, t)
+	target, err := resolveSSHOpenTarget(hostName)
+	if err != nil {
+		slog.Warn("resolve ssh target", "host", hostName, "err", err)
+	}
+	args := buildSSHArgs(hostName, t, target)
 	slog.Info("opening tunnel", "id", id, "args", args)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -280,12 +285,32 @@ func (m *manager) monitorExit(id string) {
 // buildSSHArgs constructs the argument list for an "ssh -N" tunnel command.
 // Using the host alias lets SSH resolve HostName, User, IdentityFile, etc.
 // from the user's own ~/.ssh/config.
-func buildSSHArgs(hostName string, t sshconfig.Tunnel) []string {
+func buildSSHArgs(hostName string, t sshconfig.Tunnel, target *sshOpenTarget) []string {
 	args := []string{
 		"-N",                             // No remote command — stay alive for port forwarding only.
 		"-o", "ExitOnForwardFailure=yes", // Die immediately if forwarding fails.
+		"-F", "/dev/null", // Ignore host-level forwarding directives.
+		// Keep each tunnel in its own SSH process. This prevents ControlMaster
+		// multiplexing from collapsing multiple tunnel lifecycles into one.
+		"-o", "ControlMaster=no",
 		"-o", "ServerAliveInterval=30", // Detect broken connections.
 		"-o", "ServerAliveCountMax=3",
+	}
+	if target != nil {
+		if target.User != "" {
+			args = append(args, "-l", target.User)
+		}
+		if target.Port != "" {
+			args = append(args, "-p", target.Port)
+		}
+		if target.ProxyJump != "" {
+			args = append(args, "-J", target.ProxyJump)
+		}
+		for _, id := range target.IdentityFiles {
+			if id != "" {
+				args = append(args, "-i", id)
+			}
+		}
 	}
 
 	switch t.Type {
@@ -299,7 +324,11 @@ func buildSSHArgs(hostName string, t sshconfig.Tunnel) []string {
 		args = append(args, "-D", t.LocalPort)
 	}
 
-	return append(args, hostName)
+	destination := hostName
+	if target != nil && target.HostName != "" {
+		destination = target.HostName
+	}
+	return append(args, destination)
 }
 
 func defaultStatePath() string {
@@ -440,4 +469,49 @@ func localPortOwnerByLsof(port string) (*PortOwner, error) {
 		PID:     pid,
 		Command: fields[0],
 	}, nil
+}
+
+type sshOpenTarget struct {
+	HostName      string
+	User          string
+	Port          string
+	ProxyJump     string
+	IdentityFiles []string
+}
+
+func resolveSSHOpenTarget(alias string) (*sshOpenTarget, error) {
+	cmd := exec.Command("ssh", "-G", alias)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("resolve host with ssh -G: %w", err)
+	}
+	target := &sshOpenTarget{}
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		key, val, ok := strings.Cut(line, " ")
+		if !ok {
+			continue
+		}
+		val = strings.TrimSpace(val)
+		switch key {
+		case "hostname":
+			target.HostName = val
+		case "user":
+			target.User = val
+		case "port":
+			target.Port = val
+		case "proxyjump":
+			target.ProxyJump = val
+		case "identityfile":
+			target.IdentityFiles = append(target.IdentityFiles, val)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("parse ssh -G output: %w", err)
+	}
+	return target, nil
 }
