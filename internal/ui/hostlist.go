@@ -145,5 +145,6 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 
 // View renders the host list.
 func (h HostList) View() string {
-	return h.list.View()
+	hint := helpStyle.Render("[enter/c] connect  [t] tunnel info  [q] quit")
+	return lipgloss.JoinVertical(lipgloss.Left, h.list.View(), hint)
 }
