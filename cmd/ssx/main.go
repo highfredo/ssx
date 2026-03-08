@@ -13,7 +13,7 @@ import (
 	"log/slog"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/highfredo/ssx/internal/sshconfig"
 	"github.com/highfredo/ssx/internal/tunnel"
 	"github.com/highfredo/ssx/internal/ui"
@@ -39,7 +39,7 @@ func main() {
 	}
 	model := ui.NewApp(hosts, mgr)
 
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(model)
 
 	// Wire the tunnel manager's dispatch callback to the Bubble Tea runtime so
 	// unexpected tunnel exits are surfaced as TUI messages.

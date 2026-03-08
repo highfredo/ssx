@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/highfredo/ssx/internal/sshconfig"
 )
 
@@ -18,7 +18,16 @@ type hostItem struct {
 	host *sshconfig.Host
 }
 
-func (i hostItem) Title() string { return i.host.Name }
+func (i hostItem) Title() string {
+	if len(i.host.Tags) == 0 {
+		return i.host.Name
+	}
+	chips := make([]string, len(i.host.Tags))
+	for j, tag := range i.host.Tags {
+		chips[j] = tagChipStyle.Render(tag)
+	}
+	return i.host.Name + " " + strings.Join(chips, " ")
+}
 
 func (i hostItem) Description() string {
 	var addr string
@@ -31,9 +40,6 @@ func (i hostItem) Description() string {
 		addr += ":" + i.host.Port
 	}
 	details := []string{addr}
-	if len(i.host.Tags) > 0 {
-		details = append(details, "tags: "+strings.Join(i.host.Tags, ", "))
-	}
 	n := len(i.host.Tunnels)
 	if n > 0 {
 		details = append(details, fmt.Sprintf("%d tunnel(s) configured", n))
@@ -106,19 +112,19 @@ func (h HostList) SelectedHost() *sshconfig.Host {
 // Update handles keyboard events and delegates navigation to bubbles/list.
 // Custom keys are intercepted only when the list is not in filter mode.
 func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
-	if mouse, ok := msg.(tea.MouseMsg); ok && h.list.FilterState() != list.Filtering {
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok && h.list.FilterState() != list.Filtering {
 		newList, cmd := h.list.Update(msg)
 		h.list = newList
-
-		switch mouse.Button {
-		case tea.MouseButtonWheelUp:
+		m := mouseMsg.Mouse()
+		switch m.Button {
+		case tea.MouseWheelUp:
 			h.list.CursorUp()
 			return h, nil
-		case tea.MouseButtonWheelDown:
+		case tea.MouseWheelDown:
 			h.list.CursorDown()
 			return h, nil
-		case tea.MouseButtonLeft:
-			if mouse.Action != tea.MouseActionRelease {
+		case tea.MouseLeft:
+			if _, ok := msg.(tea.MouseReleaseMsg); !ok {
 				return h, cmd
 			}
 			host := h.SelectedHost()
@@ -134,8 +140,8 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 			h.lastClickHost = host.Name
 			h.lastClickAt = now
 			return h, cmd
-		case tea.MouseButtonRight:
-			if mouse.Action != tea.MouseActionRelease {
+		case tea.MouseRight:
+			if _, ok := msg.(tea.MouseReleaseMsg); !ok {
 				return h, cmd
 			}
 			if host := h.SelectedHost(); host != nil {
@@ -147,7 +153,7 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 	}
 
 	// Intercept key events when not filtering.
-	if key, ok := msg.(tea.KeyMsg); ok && h.list.FilterState() != list.Filtering {
+	if key, ok := msg.(tea.KeyPressMsg); ok && h.list.FilterState() != list.Filtering {
 		switch key.String() {
 		case "q", "Q":
 			return h, tea.Quit

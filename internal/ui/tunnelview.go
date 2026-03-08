@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/highfredo/ssx/internal/sshconfig"
 	"github.com/highfredo/ssx/internal/tunnel"
 )
@@ -58,7 +58,7 @@ func (tv *TunnelView) SetPortOwners(owners map[string]*tunnel.PortOwner) {
 // Update handles keyboard input for the tunnel screen.
 func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if tv.filterActive {
 			switch msg.String() {
 			case "enter":
@@ -126,17 +126,18 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 
 	case tea.MouseMsg:
 		filtered := tv.filteredTunnelIndexes()
-		switch msg.Button {
-		case tea.MouseButtonWheelUp:
+		m := msg.Mouse()
+		switch m.Button {
+		case tea.MouseWheelUp:
 			if tv.cursor > 0 {
 				tv.cursor--
 			}
-		case tea.MouseButtonWheelDown:
+		case tea.MouseWheelDown:
 			if tv.cursor < len(filtered)-1 {
 				tv.cursor++
 			}
-		case tea.MouseButtonLeft:
-			row := msg.Y - 3
+		case tea.MouseLeft:
+			row := m.Y - 3
 			if row >= 0 && row < len(filtered) {
 				if row == tv.cursor {
 					if t, ok := tv.selectedTunnel(filtered); ok {

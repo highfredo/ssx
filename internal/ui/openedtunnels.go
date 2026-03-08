@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/highfredo/ssx/internal/sshconfig"
 )
 
@@ -81,7 +81,7 @@ func (v *OpenedTunnelsView) RefreshRows(openRows []openedTunnelRow) {
 }
 
 func (v OpenedTunnelsView) Update(msg tea.Msg) (OpenedTunnelsView, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch key.String() {
 		case "up", "k":
 			if v.cursor > 0 {
@@ -100,18 +100,19 @@ func (v OpenedTunnelsView) Update(msg tea.Msg) (OpenedTunnelsView, tea.Cmd) {
 		}
 		return v, nil
 	}
-	if mouse, ok := msg.(tea.MouseMsg); ok {
-		switch mouse.Button {
-		case tea.MouseButtonWheelUp:
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		m := mouseMsg.Mouse()
+		switch m.Button {
+		case tea.MouseWheelUp:
 			if v.cursor > 0 {
 				v.cursor--
 			}
-		case tea.MouseButtonWheelDown:
+		case tea.MouseWheelDown:
 			if v.cursor < len(v.rows)-1 {
 				v.cursor++
 			}
-		case tea.MouseButtonLeft:
-			row := mouse.Y - 2
+		case tea.MouseLeft:
+			row := m.Y - 2
 			if row >= 0 && row < len(v.rows) {
 				if row == v.cursor {
 					return v, toggleRowCmd(v.rows[row])

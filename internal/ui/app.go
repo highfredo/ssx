@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/highfredo/ssx/internal/credentials"
 	"github.com/highfredo/ssx/internal/sshconfig"
 	"github.com/highfredo/ssx/internal/sshpass"
@@ -110,12 +110,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Non-key messages (e.g. tunnel exit notifications) fall through to the
 	// normal update path so background events are never silently dropped.
 	if a.passwordPrompt != nil {
-		if _, ok := msg.(tea.KeyMsg); ok {
+		if _, ok := msg.(tea.KeyPressMsg); ok {
 			return a.updatePasswordPrompt(msg)
 		}
 	}
 	if a.killPrompt != nil {
-		if _, ok := msg.(tea.KeyMsg); ok {
+		if _, ok := msg.(tea.KeyPressMsg); ok {
 			return a.updateKillPrompt(msg)
 		}
 	}
@@ -135,7 +135,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	// ── Hard quit ─────────────────────────────────────────────────────────────
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return a, tea.Quit
 		}
@@ -260,7 +260,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model and renders the active screen with an optional
 // status bar appended at the bottom.
-func (a *App) View() string {
+func (a *App) View() tea.View {
 	var body string
 	switch a.state {
 	case viewHostList:
@@ -278,17 +278,20 @@ func (a *App) View() string {
 		body = lipgloss.JoinVertical(lipgloss.Left, body, a.renderKillPrompt())
 	}
 
-	if a.statusMsg == "" {
-		return body
+	if a.statusMsg != "" {
+		var statusBar string
+		if a.statusIsErr {
+			statusBar = errorStyle.Render("✗ " + a.statusMsg)
+		} else {
+			statusBar = statusOKStyle.Render("✓ " + a.statusMsg)
+		}
+		body = lipgloss.JoinVertical(lipgloss.Left, body, statusBar)
 	}
 
-	var statusBar string
-	if a.statusIsErr {
-		statusBar = errorStyle.Render("✗ " + a.statusMsg)
-	} else {
-		statusBar = statusOKStyle.Render("✓ " + a.statusMsg)
-	}
-	return lipgloss.JoinVertical(lipgloss.Left, body, statusBar)
+	v := tea.NewView(body)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -325,7 +328,7 @@ func (a *App) beginPasswordPrompt(hostName string, action pendingAction, t sshco
 }
 
 func (a *App) updatePasswordPrompt(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch key.String() {
 		case "ctrl+c":
 			return a, tea.Quit
@@ -381,7 +384,7 @@ func (a *App) beginKillPrompt(hostName string, t sshconfig.Tunnel, owner *tunnel
 }
 
 func (a *App) updateKillPrompt(msg tea.Msg) (tea.Model, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
+	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return a, nil
 	}

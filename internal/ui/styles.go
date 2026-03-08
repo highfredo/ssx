@@ -1,11 +1,11 @@
 // Package ui contains all Bubble Tea TUI models, views, and styles for ssx.
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // ── Color palette ────────────────────────────────────────────────────────────
 
-const (
+var (
 	colorPrimary   = lipgloss.Color("#7C3AED") // Purple  — accent / title bg
 	colorSecondary = lipgloss.Color("#4F46E5") // Indigo  — selected item bg
 	colorHighlight = lipgloss.Color("#1E1B4B") // Dark indigo — selected row bg
@@ -71,6 +71,13 @@ var (
 
 	// tunnelTypeLabelStyle is the base for type badge — colour applied per type.
 	tunnelTypeLabelBase = lipgloss.NewStyle().Bold(true)
+
+	// tagChipStyle renders host tags as small pill-shaped badges.
+	tagChipStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#312E81")).
+			Foreground(lipgloss.Color("#C4B5FD")).
+			Padding(0, 1).
+			Bold(true)
 )
 
 // TunnelTypeStyle returns the colour-appropriate style for a tunnel type label.
