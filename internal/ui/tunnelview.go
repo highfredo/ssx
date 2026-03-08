@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/highfredo/ssx/internal/sshconfig"
@@ -16,21 +17,28 @@ import (
 // It displays every configured tunnel for a selected host with its live state
 // (OPEN / CLOSED) and allows the user to open or close individual tunnels.
 type TunnelView struct {
-	host   *sshconfig.Host
-	mgr    tunnel.Manager
-	cursor int
-	width  int
-	height int
+	host         *sshconfig.Host
+	mgr          tunnel.Manager
+	cursor       int
+	width        int
+	height       int
+	filterInput  textinput.Model
+	filterActive bool
 }
 
 // NewTunnelView creates a TunnelView for the given host and manager.
 func NewTunnelView(host *sshconfig.Host, mgr tunnel.Manager, w, h int) TunnelView {
+	filter := textinput.New()
+	filter.Prompt = "Filter: "
+	filter.Placeholder = "type to filter tunnels"
+	filter.CharLimit = 128
 	return TunnelView{
-		host:   host,
-		mgr:    mgr,
-		cursor: 0,
-		width:  w,
-		height: h,
+		host:        host,
+		mgr:         mgr,
+		cursor:      0,
+		width:       w,
+		height:      h,
+		filterInput: filter,
 	}
 }
 
@@ -42,11 +50,31 @@ func (tv *TunnelView) SetSize(w, h int) {
 
 // Update handles keyboard input for the tunnel screen.
 func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
-	tunnels := tv.host.Tunnels
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if tv.filterActive {
+			switch msg.String() {
+			case "enter":
+				tv.filterActive = false
+				tv.filterInput.Blur()
+				return tv, nil
+			case "esc":
+				tv.filterActive = false
+				tv.filterInput.Blur()
+				return tv, nil
+			}
+			var cmd tea.Cmd
+			tv.filterInput, cmd = tv.filterInput.Update(msg)
+			tv.clampCursor(len(tv.filteredTunnelIndexes()))
+			return tv, cmd
+		}
+
+		filtered := tv.filteredTunnelIndexes()
 		switch msg.String() {
+		case "/":
+			tv.filterActive = true
+			tv.filterInput.Focus()
+			return tv, nil
 
 		// Navigation
 		case "up", "k":
@@ -55,14 +83,13 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 			}
 
 		case "down", "j":
-			if tv.cursor < len(tunnels)-1 {
+			if tv.cursor < len(filtered)-1 {
 				tv.cursor++
 			}
 
 		// Open selected tunnel
 		case "o", "O":
-			if len(tunnels) > 0 {
-				t := tunnels[tv.cursor]
+			if t, ok := tv.selectedTunnel(filtered); ok {
 				id := t.ID(tv.host.Name)
 				if tv.mgr.State(id) == tunnel.StateOpen {
 					// Already open — no-op, but return a result msg so the
@@ -81,8 +108,7 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 
 		// Toggle selected tunnel
 		case "x", "X":
-			if len(tunnels) > 0 {
-				t := tunnels[tv.cursor]
+			if t, ok := tv.selectedTunnel(filtered); ok {
 				id := t.ID(tv.host.Name)
 				if tv.mgr.State(id) == tunnel.StateClosed {
 					return tv, func() tea.Msg {
@@ -112,6 +138,16 @@ func (tv TunnelView) View() string {
 	// ── Title ─────────────────────────────────────────────────────────────────
 	title := titleStyle.Render(fmt.Sprintf(" Tunnels › %s ", tv.host.Name))
 	sb.WriteString(title)
+	sb.WriteString("\n")
+	if tv.filterActive {
+		sb.WriteString(tv.filterInput.View())
+	} else {
+		query := tv.filterInput.Value()
+		if query == "" {
+			query = "(none)"
+		}
+		sb.WriteString(helpStyle.Render(fmt.Sprintf("Filter: %s   [/ edit filter]", query)))
+	}
 	sb.WriteString("\n\n")
 
 	// ── Tunnel rows ──────────────────────────────────────────────────────────
@@ -119,7 +155,13 @@ func (tv TunnelView) View() string {
 		sb.WriteString(helpStyle.Render("  No tunnels configured for this host."))
 		sb.WriteString("\n")
 	} else {
-		for i, t := range tv.host.Tunnels {
+		filtered := tv.filteredTunnelIndexes()
+		if len(filtered) == 0 {
+			sb.WriteString(helpStyle.Render("  No tunnels match the current filter."))
+			sb.WriteString("\n")
+		}
+		for i, idx := range filtered {
+			t := tv.host.Tunnels[idx]
 			sb.WriteString(tv.renderRow(i, t))
 			sb.WriteString("\n")
 		}
@@ -127,7 +169,7 @@ func (tv TunnelView) View() string {
 
 	// ── Help bar ─────────────────────────────────────────────────────────────
 	sb.WriteString("\n")
-	help := helpStyle.Render("[x] toggle open/close  [↑↓ / jk] navigate  [esc] back")
+	help := helpStyle.Render("[/] filter  [x] toggle open/close  [↑↓ / jk] navigate  [esc] back")
 	sb.WriteString(help)
 
 	return sb.String()
@@ -182,4 +224,43 @@ func (tv TunnelView) usableWidth() int {
 		return tv.width - 4
 	}
 	return 80
+}
+
+func (tv *TunnelView) clampCursor(filteredCount int) {
+	if filteredCount <= 0 {
+		tv.cursor = 0
+		return
+	}
+	if tv.cursor >= filteredCount {
+		tv.cursor = filteredCount - 1
+	}
+	if tv.cursor < 0 {
+		tv.cursor = 0
+	}
+}
+
+func (tv TunnelView) filteredTunnelIndexes() []int {
+	var out []int
+	query := strings.ToLower(strings.TrimSpace(tv.filterInput.Value()))
+	for i, t := range tv.host.Tunnels {
+		if query == "" || strings.Contains(strings.ToLower(tv.tunnelSearchText(t)), query) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func (tv TunnelView) selectedTunnel(filtered []int) (sshconfig.Tunnel, bool) {
+	if len(filtered) == 0 || tv.cursor >= len(filtered) || tv.cursor < 0 {
+		return sshconfig.Tunnel{}, false
+	}
+	return tv.host.Tunnels[filtered[tv.cursor]], true
+}
+
+func (tv TunnelView) tunnelSearchText(t sshconfig.Tunnel) string {
+	return strings.ToLower(strings.Join([]string{
+		string(t.Type),
+		t.DisplaySpec(),
+		t.Description,
+	}, " "))
 }

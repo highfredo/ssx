@@ -69,6 +69,7 @@ make run
 |---|---|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `/` | Edit tunnel filter |
 | `x` | Toggle selected tunnel (open/close) |
 | `esc` / `q` | Back to host list |
 
