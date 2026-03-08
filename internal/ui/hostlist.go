@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,14 +29,22 @@ func (i hostItem) Description() string {
 	if i.host.Port != "22" {
 		addr += ":" + i.host.Port
 	}
-	n := len(i.host.Tunnels)
-	if n == 0 {
-		return addr
+	details := []string{addr}
+	if len(i.host.Tags) > 0 {
+		details = append(details, "tags: "+strings.Join(i.host.Tags, ", "))
 	}
-	return fmt.Sprintf("%s   %d tunnel(s) configured", addr, n)
+	n := len(i.host.Tunnels)
+	if n > 0 {
+		details = append(details, fmt.Sprintf("%d tunnel(s) configured", n))
+	}
+	return strings.Join(details, "   ")
 }
 
-func (i hostItem) FilterValue() string { return i.host.Name }
+func (i hostItem) FilterValue() string {
+	parts := []string{i.host.Name, i.host.Hostname, i.host.User}
+	parts = append(parts, i.host.Tags...)
+	return strings.Join(parts, " ")
+}
 
 // ── HostList model ────────────────────────────────────────────────────────────
 

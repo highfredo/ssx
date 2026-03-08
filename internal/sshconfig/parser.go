@@ -1,9 +1,11 @@
 // Package sshconfig parses and represents SSH host configuration from ~/.ssh/config.
 // It extracts host entries, their effective connection parameters, and any
 // port-forwarding tunnels (LocalForward, RemoteForward, DynamicForward).
+// It also parses optional host tags declared as comments: "#>tags: a, b".
 package sshconfig
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +54,7 @@ type Host struct {
 	Hostname string // Resolved HostName (or alias if absent).
 	User     string // SSH user (User directive).
 	Port     string // SSH port (default: "22").
+	Tags     []string
 	Tunnels  []Tunnel
 }
 
@@ -60,19 +63,19 @@ type Host struct {
 func ParseConfig() ([]*Host, error) {
 	configPath := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
 
-	f, err := os.Open(configPath)
+	content, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("open ssh config %s: %w", configPath, err)
 	}
-	defer f.Close()
 
-	cfg, err := gossh.Decode(f)
+	cfg, err := gossh.Decode(strings.NewReader(string(content)))
 	if err != nil {
 		return nil, fmt.Errorf("parse ssh config: %w", err)
 	}
+	hostTags := parseHostTags(string(content))
 
 	var hosts []*Host
 	for _, h := range cfg.Hosts {
@@ -100,10 +103,75 @@ func ParseConfig() ([]*Host, error) {
 			Hostname: hostname,
 			User:     user,
 			Port:     port,
+			Tags:     hostTags[name],
 			Tunnels:  parseTunnels(cfg, name),
 		})
 	}
 	return hosts, nil
+}
+
+// parseHostTags extracts "#>tags: ..." comments from Host blocks.
+func parseHostTags(configText string) map[string][]string {
+	tagsByAlias := make(map[string][]string)
+	var currentAliases []string
+
+	scanner := bufio.NewScanner(strings.NewReader(configText))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) > 0 {
+			switch strings.ToLower(fields[0]) {
+			case "host":
+				currentAliases = nil
+				if len(fields) > 1 {
+					currentAliases = append(currentAliases, fields[1:]...)
+				}
+				continue
+			case "match":
+				currentAliases = nil
+			}
+		}
+
+		if len(currentAliases) == 0 || !strings.HasPrefix(line, "#>") {
+			continue
+		}
+		anno := strings.TrimSpace(strings.TrimPrefix(line, "#>"))
+		if !strings.HasPrefix(strings.ToLower(anno), "tags:") {
+			continue
+		}
+
+		tagText := strings.TrimSpace(anno[len("tags:"):])
+		if tagText == "" {
+			continue
+		}
+		tags := strings.Split(tagText, ",")
+		for _, alias := range currentAliases {
+			if strings.ContainsAny(alias, "*?") || strings.HasPrefix(alias, "!") {
+				continue
+			}
+			for _, tag := range tags {
+				tag = strings.TrimSpace(tag)
+				if tag == "" {
+					continue
+				}
+				tagsByAlias[alias] = appendIfMissing(tagsByAlias[alias], tag)
+			}
+		}
+	}
+	return tagsByAlias
+}
+
+func appendIfMissing(items []string, v string) []string {
+	for _, item := range items {
+		if item == v {
+			return items
+		}
+	}
+	return append(items, v)
 }
 
 // parseTunnels extracts all configured tunnels for the given host alias.

@@ -9,6 +9,7 @@ A terminal user interface for managing SSH connections and tunnels, built with [
 | Feature | Detail |
 |---|---|
 | Host list | Reads every non-wildcard `Host` entry from `~/.ssh/config` |
+| Tags | Reads host tags from `#>tags:` comments inside `Host` blocks |
 | Connect | Press **`enter`** (or **`c`**) — opens interactive SSH without auto-applying tunnel forwards |
 | Tunnel view | Press **`t`** — shows all `LocalForward`, `RemoteForward`, `DynamicForward` for a host |
 | Open tunnel | Press **`o`** — starts `ssh -N` in the background |
@@ -55,6 +56,7 @@ make run
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `/` | Filter hosts |
+| (filter text) | Matches host alias, hostname, user, and tags |
 | `enter` / `c` | Connect to selected host via SSH |
 | `t` | Open tunnel management for selected host |
 | `q` | Quit |
@@ -75,6 +77,7 @@ make run
 
 ```sshconfig
 Host dev-box
+    #>tags: work, k8s
     HostName 10.0.0.5
     User ubuntu
     IdentityFile ~/.ssh/id_dev
@@ -83,10 +86,19 @@ Host dev-box
     DynamicForward 1080
 
 Host prod
+    #>tags: work, critical
     HostName prod.example.com
     User deploy
     Port 2222
     RemoteForward 9090 localhost:9090
+```
+
+`#>tags:` values must be comma-separated and placed under a `Host` block, for example:
+
+```sshconfig
+Host mini
+    #>tags: minipc, personal
+    HostName 192.168.10.2
 ```
 
 ---
