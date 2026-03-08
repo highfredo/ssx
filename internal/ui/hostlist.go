@@ -41,7 +41,7 @@ func (i hostItem) FilterValue() string { return i.host.Name }
 
 // HostList is the Bubble Tea model for the SSH host selection screen.
 // Navigation (j/k, ↑↓, PgUp/PgDn, /) is handled by the underlying
-// bubbles/list component. Custom keys (c, p, q) are intercepted before
+// bubbles/list component. Custom keys (enter/c, t, q) are intercepted before
 // forwarding to the list.
 type HostList struct {
 	list  list.Model
@@ -98,12 +98,12 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 		case "q", "Q":
 			return h, tea.Quit
 
-		case "c":
+		case "c", "enter":
 			if host := h.SelectedHost(); host != nil {
 				return h, func() tea.Msg { return requestConnectMsg{host: host} }
 			}
 
-		case "p":
+		case "t", "T":
 			if host := h.SelectedHost(); host != nil {
 				return h, func() tea.Msg { return openTunnelViewMsg{host: host} }
 			}

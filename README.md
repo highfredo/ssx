@@ -9,8 +9,8 @@ A terminal user interface for managing SSH connections and tunnels, built with [
 | Feature | Detail |
 |---|---|
 | Host list | Reads every non-wildcard `Host` entry from `~/.ssh/config` |
-| Connect | Press **`c`** — opens interactive SSH without auto-applying tunnel forwards |
-| Tunnel view | Press **`p`** — shows all `LocalForward`, `RemoteForward`, `DynamicForward` for a host |
+| Connect | Press **`enter`** (or **`c`**) — opens interactive SSH without auto-applying tunnel forwards |
+| Tunnel view | Press **`t`** — shows all `LocalForward`, `RemoteForward`, `DynamicForward` for a host |
 | Open tunnel | Press **`o`** — starts `ssh -N` in the background |
 | Password auth | Tunnel password is prompted when needed and persisted to `~/.local/state/ssx/passwords.json` |
 | Close tunnel | Press **`x`** — kills the background process |
@@ -55,8 +55,8 @@ make run
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `/` | Filter hosts |
-| `c` | Connect to selected host via SSH |
-| `p` | Open tunnel management for selected host |
+| `enter` / `c` | Connect to selected host via SSH |
+| `t` | Open tunnel management for selected host |
 | `q` | Quit |
 | `ctrl+c` | Force quit |
 
@@ -66,8 +66,7 @@ make run
 |---|---|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
-| `o` | Open selected tunnel |
-| `x` | Close selected tunnel |
+| `x` | Toggle selected tunnel (open/close) |
 | `esc` / `q` | Back to host list |
 
 ---

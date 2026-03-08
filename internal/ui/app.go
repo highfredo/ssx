@@ -8,7 +8,7 @@
 //
 // Navigation flow:
 //
-//	HostList  --[p]--> TunnelView
+//	HostList  --[t]--> TunnelView
 //	TunnelView --[esc/q]--> HostList
 //
 // SSH connections are executed with tea.ExecProcess, which suspends the TUI,

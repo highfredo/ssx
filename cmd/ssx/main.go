@@ -2,8 +2,8 @@
 //
 // It reads host configuration from ~/.ssh/config, presents an interactive
 // list of hosts, and allows the user to:
-//   - Connect interactively via SSH (key: c)
-//   - Open and close individual port-forwarding tunnels (key: p → tunnel view)
+//   - Connect interactively via SSH (key: enter or c)
+//   - Open and close individual port-forwarding tunnels (key: t → tunnel view)
 //
 // All active tunnels are gracefully terminated when the program exits.
 package main

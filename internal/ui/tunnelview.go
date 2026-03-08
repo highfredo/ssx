@@ -79,17 +79,14 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 				}
 			}
 
-		// Close selected tunnel
+		// Toggle selected tunnel
 		case "x", "X":
 			if len(tunnels) > 0 {
 				t := tunnels[tv.cursor]
 				id := t.ID(tv.host.Name)
 				if tv.mgr.State(id) == tunnel.StateClosed {
 					return tv, func() tea.Msg {
-						return closeTunnelResultMsg{
-							TunnelID: id,
-							Err:      fmt.Errorf("tunnel is not open"),
-						}
+						return requestOpenTunnelMsg{hostName: tv.host.Name, tunnel: t}
 					}
 				}
 				return tv, closeTunnelCmd(tv.mgr, id)
@@ -130,7 +127,7 @@ func (tv TunnelView) View() string {
 
 	// ── Help bar ─────────────────────────────────────────────────────────────
 	sb.WriteString("\n")
-	help := helpStyle.Render("[o] open  [x] close  [↑↓ / jk] navigate  [esc] back")
+	help := helpStyle.Render("[x] toggle open/close  [↑↓ / jk] navigate  [esc] back")
 	sb.WriteString(help)
 
 	return sb.String()
