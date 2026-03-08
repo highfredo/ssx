@@ -11,6 +11,7 @@ A terminal user interface for managing SSH connections and tunnels, built with [
 | Host list | Reads every non-wildcard `Host` entry from `~/.ssh/config` |
 | Tags | Reads host tags from `#>tags:` comments inside `Host` blocks |
 | Tunnel descriptions | Reads inline comments on forwarding directives (e.g. `LocalForward ... # web`) |
+| Mouse support | Host and tunnel navigation via mouse (wheel + click) |
 | Connect | Press **`enter`** (or **`c`**) — opens interactive SSH without auto-applying tunnel forwards |
 | Tunnel view | Press **`t`** — shows all `LocalForward`, `RemoteForward`, `DynamicForward` for a host |
 | Open tunnel | Press **`o`** — starts `ssh -N` in the background |
@@ -61,6 +62,9 @@ make run
 | (filter text) | Matches host alias, hostname, user, and tags |
 | `enter` / `c` | Connect to selected host via SSH |
 | `t` | Open tunnel management for selected host |
+| Mouse wheel | Move selection |
+| Left click | Connect selected host |
+| Right click | Open tunnel management for selected host |
 | `q` | Quit |
 | `ctrl+c` | Force quit |
 
@@ -72,6 +76,8 @@ make run
 | `k` / `↑` | Move up |
 | `/` | Edit tunnel filter |
 | `enter` / `x` | Toggle selected tunnel (open/close) |
+| Mouse wheel | Move selection |
+| Left click | Select tunnel (click selected row again to toggle) |
 | `esc` / `q` | Back to host list |
 
 ---

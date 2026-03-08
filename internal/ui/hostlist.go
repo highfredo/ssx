@@ -101,6 +101,25 @@ func (h HostList) SelectedHost() *sshconfig.Host {
 // Update handles keyboard events and delegates navigation to bubbles/list.
 // Custom keys are intercepted only when the list is not in filter mode.
 func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
+	if mouse, ok := msg.(tea.MouseMsg); ok && h.list.FilterState() != list.Filtering {
+		switch mouse.Button {
+		case tea.MouseButtonWheelUp:
+			h.list.CursorUp()
+			return h, nil
+		case tea.MouseButtonWheelDown:
+			h.list.CursorDown()
+			return h, nil
+		case tea.MouseButtonLeft:
+			if host := h.SelectedHost(); host != nil {
+				return h, func() tea.Msg { return requestConnectMsg{host: host} }
+			}
+		case tea.MouseButtonRight:
+			if host := h.SelectedHost(); host != nil {
+				return h, func() tea.Msg { return openTunnelViewMsg{host: host} }
+			}
+		}
+	}
+
 	// Intercept key events when not filtering.
 	if key, ok := msg.(tea.KeyMsg); ok && h.list.FilterState() != list.Filtering {
 		switch key.String() {

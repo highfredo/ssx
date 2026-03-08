@@ -130,6 +130,35 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 			return tv, func() tea.Msg { return backMsg{} }
 		}
 
+	case tea.MouseMsg:
+		filtered := tv.filteredTunnelIndexes()
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			if tv.cursor > 0 {
+				tv.cursor--
+			}
+		case tea.MouseButtonWheelDown:
+			if tv.cursor < len(filtered)-1 {
+				tv.cursor++
+			}
+		case tea.MouseButtonLeft:
+			row := msg.Y - 3
+			if row >= 0 && row < len(filtered) {
+				if row == tv.cursor {
+					if t, ok := tv.selectedTunnel(filtered); ok {
+						id := t.ID(tv.host.Name)
+						if tv.mgr.State(id) == tunnel.StateClosed {
+							return tv, func() tea.Msg {
+								return requestOpenTunnelMsg{hostName: tv.host.Name, tunnel: t}
+							}
+						}
+						return tv, closeTunnelCmd(tv.mgr, id)
+					}
+				}
+				tv.cursor = row
+			}
+		}
+
 	// Re-render on any refresh message (tunnel state changed externally).
 	case refreshTunnelViewMsg:
 		// No state to update — View() reads live state from the manager.
@@ -176,7 +205,7 @@ func (tv TunnelView) View() string {
 
 	// ── Help bar ─────────────────────────────────────────────────────────────
 	sb.WriteString("\n")
-	help := helpStyle.Render("[/] filter  [enter/x] toggle open/close  [↑↓ / jk] navigate  [esc] back")
+	help := helpStyle.Render("[/] filter  [enter/x] toggle  [mouse: wheel/click]  [↑↓ / jk] navigate  [esc] back")
 	sb.WriteString(help)
 
 	return sb.String()

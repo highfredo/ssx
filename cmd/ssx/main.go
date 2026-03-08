@@ -39,7 +39,7 @@ func main() {
 	}
 	model := ui.NewApp(hosts, mgr)
 
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	// Wire the tunnel manager's dispatch callback to the Bubble Tea runtime so
 	// unexpected tunnel exits are surfaced as TUI messages.
