@@ -20,6 +20,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/highfredo/ssx/internal/atomicfile"
 	"github.com/highfredo/ssx/internal/sshconfig"
 	"github.com/highfredo/ssx/internal/sshpass"
 )
@@ -367,20 +368,8 @@ func (m *manager) persistLocked() error {
 			state[id] = at.pid
 		}
 	}
-	dir := filepath.Dir(m.statePath)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create state dir %s: %w", dir, err)
-	}
-	b, err := json.Marshal(state)
-	if err != nil {
-		return fmt.Errorf("encode state: %w", err)
-	}
-	tmp := m.statePath + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("write state tmp %s: %w", tmp, err)
-	}
-	if err := os.Rename(tmp, m.statePath); err != nil {
-		return fmt.Errorf("commit state file %s: %w", m.statePath, err)
+	if err := atomicfile.WriteJSON(m.statePath, state); err != nil {
+		return fmt.Errorf("save tunnel state: %w", err)
 	}
 	return nil
 }

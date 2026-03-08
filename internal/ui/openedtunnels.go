@@ -93,13 +93,7 @@ func (v OpenedTunnelsView) Update(msg tea.Msg) (OpenedTunnelsView, tea.Cmd) {
 			}
 		case "x", "X", "enter":
 			if len(v.rows) > 0 && v.cursor >= 0 && v.cursor < len(v.rows) {
-				row := v.rows[v.cursor]
-				if row.State == "OPEN" {
-					return v, func() tea.Msg { return requestCloseTunnelMsg{tunnelID: row.TunnelID} }
-				}
-				return v, func() tea.Msg {
-					return requestOpenTunnelMsg{hostName: row.Host, tunnel: row.Tunnel}
-				}
+				return v, toggleRowCmd(v.rows[v.cursor])
 			}
 		case "q", "Q", "esc", "o", "O":
 			return v, func() tea.Msg { return backMsg{} }
@@ -120,13 +114,7 @@ func (v OpenedTunnelsView) Update(msg tea.Msg) (OpenedTunnelsView, tea.Cmd) {
 			row := mouse.Y - 2
 			if row >= 0 && row < len(v.rows) {
 				if row == v.cursor {
-					selected := v.rows[row]
-					if selected.State == "OPEN" {
-						return v, func() tea.Msg { return requestCloseTunnelMsg{tunnelID: selected.TunnelID} }
-					}
-					return v, func() tea.Msg {
-						return requestOpenTunnelMsg{hostName: selected.Host, tunnel: selected.Tunnel}
-					}
+					return v, toggleRowCmd(v.rows[row])
 				}
 				v.cursor = row
 			}
@@ -134,6 +122,15 @@ func (v OpenedTunnelsView) Update(msg tea.Msg) (OpenedTunnelsView, tea.Cmd) {
 		return v, nil
 	}
 	return v, nil
+}
+
+// toggleRowCmd returns a command to open or close a tunnel row based on its
+// current state: OPEN → close request, otherwise → open request.
+func toggleRowCmd(row openedTunnelRow) tea.Cmd {
+	if row.State == "OPEN" {
+		return func() tea.Msg { return requestCloseTunnelMsg{tunnelID: row.TunnelID} }
+	}
+	return func() tea.Msg { return requestOpenTunnelMsg{hostName: row.Host, tunnel: row.Tunnel} }
 }
 
 func (v OpenedTunnelsView) View() string {

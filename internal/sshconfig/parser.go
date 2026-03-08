@@ -227,9 +227,11 @@ func resolveIncludeMatches(directive, sshDir string) ([]string, error) {
 	return matches, nil
 }
 
-// parseHostTags extracts "#>tags: ..." comments from Host blocks.
-func parseHostTags(configText string) map[string][]string {
-	tagsByAlias := make(map[string][]string)
+// forEachConfigLine iterates every non-empty line in configText, tracking the
+// current Host block aliases. Host and Match directive lines are consumed to
+// maintain alias context; all other lines are passed to fn together with the
+// current alias slice (nil when outside a Host block).
+func forEachConfigLine(configText string, fn func(aliases []string, line string)) {
 	var currentAliases []string
 
 	scanner := bufio.NewScanner(strings.NewReader(configText))
@@ -238,47 +240,49 @@ func parseHostTags(configText string) map[string][]string {
 		if line == "" {
 			continue
 		}
-
 		fields := strings.Fields(line)
-		if len(fields) > 0 {
-			switch strings.ToLower(fields[0]) {
-			case "host":
-				currentAliases = nil
-				if len(fields) > 1 {
-					currentAliases = append(currentAliases, fields[1:]...)
-				}
-				continue
-			case "match":
-				currentAliases = nil
+		switch strings.ToLower(fields[0]) {
+		case "host":
+			currentAliases = nil
+			if len(fields) > 1 {
+				currentAliases = append(currentAliases, fields[1:]...)
 			}
+		case "match":
+			currentAliases = nil
+		default:
+			fn(currentAliases, line)
 		}
+	}
+}
 
-		if len(currentAliases) == 0 || !strings.HasPrefix(line, "#>") {
-			continue
+// parseHostTags extracts "#>tags: ..." comments from Host blocks.
+func parseHostTags(configText string) map[string][]string {
+	tagsByAlias := make(map[string][]string)
+
+	forEachConfigLine(configText, func(aliases []string, line string) {
+		if len(aliases) == 0 || !strings.HasPrefix(line, "#>") {
+			return
 		}
 		anno := strings.TrimSpace(strings.TrimPrefix(line, "#>"))
 		if !strings.HasPrefix(strings.ToLower(anno), "tags:") {
-			continue
+			return
 		}
-
 		tagText := strings.TrimSpace(anno[len("tags:"):])
 		if tagText == "" {
-			continue
+			return
 		}
 		tags := strings.Split(tagText, ",")
-		for _, alias := range currentAliases {
+		for _, alias := range aliases {
 			if strings.ContainsAny(alias, "*?") || strings.HasPrefix(alias, "!") {
 				continue
 			}
 			for _, tag := range tags {
-				tag = strings.TrimSpace(tag)
-				if tag == "" {
-					continue
+				if tag = strings.TrimSpace(tag); tag != "" {
+					tagsByAlias[alias] = appendIfMissing(tagsByAlias[alias], tag)
 				}
-				tagsByAlias[alias] = appendIfMissing(tagsByAlias[alias], tag)
 			}
 		}
-	}
+	})
 	return tagsByAlias
 }
 
@@ -293,40 +297,17 @@ func appendIfMissing(items []string, v string) []string {
 
 func parseHostTunnelDescriptions(configText string) map[string]map[string]string {
 	descriptionsByAlias := make(map[string]map[string]string)
-	var currentAliases []string
 
-	scanner := bufio.NewScanner(strings.NewReader(configText))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	forEachConfigLine(configText, func(aliases []string, line string) {
+		if len(aliases) == 0 || strings.HasPrefix(line, "#") {
+			return
 		}
-
-		fields := strings.Fields(line)
-		if len(fields) > 0 {
-			switch strings.ToLower(fields[0]) {
-			case "host":
-				currentAliases = nil
-				if len(fields) > 1 {
-					currentAliases = append(currentAliases, fields[1:]...)
-				}
-				continue
-			case "match":
-				currentAliases = nil
-			}
-		}
-
-		if len(currentAliases) == 0 || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		_, tunnel, description, ok := parseTunnelDirectiveLine(line)
+		_, t, description, ok := parseTunnelDirectiveLine(line)
 		if !ok || description == "" {
-			continue
+			return
 		}
-
-		key := tunnelDescriptorKey(tunnel)
-		for _, alias := range currentAliases {
+		key := tunnelDescriptorKey(t)
+		for _, alias := range aliases {
 			if strings.ContainsAny(alias, "*?") || strings.HasPrefix(alias, "!") {
 				continue
 			}
@@ -335,8 +316,7 @@ func parseHostTunnelDescriptions(configText string) map[string]map[string]string
 			}
 			descriptionsByAlias[alias][key] = description
 		}
-	}
-
+	})
 	return descriptionsByAlias
 }
 

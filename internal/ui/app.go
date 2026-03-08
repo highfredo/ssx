@@ -106,18 +106,16 @@ func (a *App) Init() tea.Cmd {
 
 // Update implements tea.Model and routes every message to the correct handler.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// While a prompt is active, key events go directly to the prompt handler.
+	// Non-key messages (e.g. tunnel exit notifications) fall through to the
+	// normal update path so background events are never silently dropped.
 	if a.passwordPrompt != nil {
-		if _, ok := msg.(tea.KeyMsg); !ok {
-			// Allow non-input async messages (e.g. tunnel exit notifications)
-			// to continue through the normal update flow.
-		} else {
+		if _, ok := msg.(tea.KeyMsg); ok {
 			return a.updatePasswordPrompt(msg)
 		}
 	}
 	if a.killPrompt != nil {
-		if _, ok := msg.(tea.KeyMsg); !ok {
-			// Allow non-input async messages through.
-		} else {
+		if _, ok := msg.(tea.KeyMsg); ok {
 			return a.updateKillPrompt(msg)
 		}
 	}

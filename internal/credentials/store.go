@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/highfredo/ssx/internal/atomicfile"
 )
 
 // Store persists per-host SSH passwords.
@@ -49,20 +51,8 @@ func (s *Store) Load() (map[string]string, error) {
 }
 
 func (s *Store) Save(passwords map[string]string) error {
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create password store dir %s: %w", dir, err)
-	}
-	b, err := json.Marshal(passwords)
-	if err != nil {
-		return fmt.Errorf("encode password store: %w", err)
-	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("write password store temp %s: %w", tmp, err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		return fmt.Errorf("commit password store %s: %w", s.path, err)
+	if err := atomicfile.WriteJSON(s.path, passwords); err != nil {
+		return fmt.Errorf("save password store %s: %w", s.path, err)
 	}
 	return nil
 }

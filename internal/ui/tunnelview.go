@@ -116,13 +116,7 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 		// Toggle selected tunnel
 		case "x", "X", "enter":
 			if t, ok := tv.selectedTunnel(filtered); ok {
-				id := t.ID(tv.host.Name)
-				if tv.mgr.State(id) == tunnel.StateClosed {
-					return tv, func() tea.Msg {
-						return requestOpenTunnelMsg{hostName: tv.host.Name, tunnel: t}
-					}
-				}
-				return tv, closeTunnelCmd(tv.mgr, id)
+				return tv, tv.toggleTunnelCmd(t)
 			}
 
 		// Back to host list
@@ -146,13 +140,7 @@ func (tv TunnelView) Update(msg tea.Msg) (TunnelView, tea.Cmd) {
 			if row >= 0 && row < len(filtered) {
 				if row == tv.cursor {
 					if t, ok := tv.selectedTunnel(filtered); ok {
-						id := t.ID(tv.host.Name)
-						if tv.mgr.State(id) == tunnel.StateClosed {
-							return tv, func() tea.Msg {
-								return requestOpenTunnelMsg{hostName: tv.host.Name, tunnel: t}
-							}
-						}
-						return tv, closeTunnelCmd(tv.mgr, id)
+						return tv, tv.toggleTunnelCmd(t)
 					}
 				}
 				tv.cursor = row
@@ -257,6 +245,16 @@ func (tv TunnelView) renderRow(idx int, t sshconfig.Tunnel) string {
 	return row
 }
 
+// toggleTunnelCmd returns a command to open or close the tunnel based on its
+// current state: CLOSED → open request, OPEN → close.
+func (tv TunnelView) toggleTunnelCmd(t sshconfig.Tunnel) tea.Cmd {
+	id := t.ID(tv.host.Name)
+	if tv.mgr.State(id) == tunnel.StateClosed {
+		return func() tea.Msg { return requestOpenTunnelMsg{hostName: tv.host.Name, tunnel: t} }
+	}
+	return closeTunnelCmd(tv.mgr, id)
+}
+
 // usableWidth returns a safe column width for the selected row highlight.
 func (tv TunnelView) usableWidth() int {
 	if tv.width > 4 {
@@ -282,7 +280,7 @@ func (tv TunnelView) filteredTunnelIndexes() []int {
 	var out []int
 	query := strings.ToLower(strings.TrimSpace(tv.filterInput.Value()))
 	for i, t := range tv.host.Tunnels {
-		if query == "" || strings.Contains(strings.ToLower(tv.tunnelSearchText(t)), query) {
+		if query == "" || strings.Contains(tv.tunnelSearchText(t), query) {
 			out = append(out, i)
 		}
 	}

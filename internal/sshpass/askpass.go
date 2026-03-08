@@ -18,18 +18,20 @@ func Configure(cmd *exec.Cmd, password string) (func(), error) {
 		return nil, fmt.Errorf("create askpass script: %w", err)
 	}
 	scriptPath := f.Name()
-	script := "#!/bin/sh\nprintf '%s\\n' \"$SSX_PASSWORD\"\n"
+	cleanup := func() { _ = os.Remove(scriptPath) }
+
+	const script = "#!/bin/sh\nprintf '%s\\n' \"$SSX_PASSWORD\"\n"
 	if _, err := f.WriteString(script); err != nil {
 		_ = f.Close()
-		_ = os.Remove(scriptPath)
+		cleanup()
 		return nil, fmt.Errorf("write askpass script: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(scriptPath)
+		cleanup()
 		return nil, fmt.Errorf("close askpass script: %w", err)
 	}
 	if err := os.Chmod(scriptPath, 0o700); err != nil {
-		_ = os.Remove(scriptPath)
+		cleanup()
 		return nil, fmt.Errorf("chmod askpass script: %w", err)
 	}
 
@@ -39,9 +41,5 @@ func Configure(cmd *exec.Cmd, password string) (func(), error) {
 		"DISPLAY=ssx:0",
 		"SSX_PASSWORD="+password,
 	)
-
-	cleanup := func() {
-		_ = os.Remove(scriptPath)
-	}
 	return cleanup, nil
 }
