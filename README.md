@@ -8,7 +8,7 @@ A terminal user interface for managing SSH connections and tunnels, built with [
 
 | Feature | Detail |
 |---|---|
-| Host list | Reads every non-wildcard `Host` entry from `~/.ssh/config` |
+| Host list | Reads every non-wildcard `Host` entry from `~/.ssh/config` (including `Include`d files) |
 | Tags | Reads host tags from `#>tags:` comments inside `Host` blocks |
 | Tunnel descriptions | Reads inline comments on forwarding directives (e.g. `LocalForward ... # web`) |
 | Mouse support | Host and tunnel navigation via mouse (wheel + click) |

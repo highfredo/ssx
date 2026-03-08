@@ -9,10 +9,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	gossh "github.com/kevinburke/ssh_config"
 )
+
+const maxIncludeDepth = 16
 
 // TunnelType enumerates the supported SSH port-forwarding modes.
 type TunnelType string
@@ -60,11 +63,13 @@ type Host struct {
 }
 
 // ParseConfig reads and parses ~/.ssh/config, returning all non-wildcard host entries.
+// Include directives are expanded before parsing.
 // If the file does not exist an empty slice is returned without error.
 func ParseConfig() ([]*Host, error) {
 	configPath := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
+	sshDir := filepath.Dir(configPath)
 
-	content, err := os.ReadFile(configPath)
+	content, err := expandConfigFile(configPath, sshDir, 0, make(map[string]bool))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -72,12 +77,12 @@ func ParseConfig() ([]*Host, error) {
 		return nil, fmt.Errorf("open ssh config %s: %w", configPath, err)
 	}
 
-	cfg, err := gossh.Decode(strings.NewReader(string(content)))
+	cfg, err := gossh.Decode(strings.NewReader(content))
 	if err != nil {
 		return nil, fmt.Errorf("parse ssh config: %w", err)
 	}
-	hostTags := parseHostTags(string(content))
-	hostTunnelDescriptions := parseHostTunnelDescriptions(string(content))
+	hostTags := parseHostTags(content)
+	hostTunnelDescriptions := parseHostTunnelDescriptions(content)
 
 	var hosts []*Host
 	for _, h := range cfg.Hosts {
@@ -118,6 +123,108 @@ func ParseConfig() ([]*Host, error) {
 		})
 	}
 	return hosts, nil
+}
+
+func expandConfigFile(path, sshDir string, depth int, inStack map[string]bool) (string, error) {
+	if depth > maxIncludeDepth {
+		return "", fmt.Errorf("include depth exceeded (%d)", maxIncludeDepth)
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if inStack[absPath] {
+		return "", fmt.Errorf("recursive include detected for %s", absPath)
+	}
+	inStack[absPath] = true
+	defer delete(inStack, absPath)
+
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", err
+	}
+
+	var out strings.Builder
+	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		includes := parseIncludeDirectives(line)
+		if len(includes) == 0 {
+			out.WriteString(line)
+			out.WriteByte('\n')
+			continue
+		}
+
+		for _, includeDirective := range includes {
+			matches, err := resolveIncludeMatches(includeDirective, sshDir)
+			if err != nil {
+				return "", err
+			}
+			for _, match := range matches {
+				expanded, err := expandConfigFile(match, sshDir, depth+1, inStack)
+				if err != nil {
+					return "", err
+				}
+				out.WriteString(expanded)
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	return out.String(), nil
+}
+
+func parseIncludeDirectives(line string) []string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return nil
+	}
+
+	beforeComment, _, _ := strings.Cut(trimmed, "#")
+	directiveText := strings.TrimSpace(beforeComment)
+
+	key, values, hasEquals := strings.Cut(directiveText, "=")
+	var fields []string
+	if hasEquals && strings.EqualFold(strings.TrimSpace(key), "include") {
+		fields = append([]string{"include"}, strings.Fields(values)...)
+	} else {
+		fields = strings.Fields(directiveText)
+		if len(fields) < 2 || !strings.EqualFold(fields[0], "include") {
+			return nil
+		}
+	}
+
+	directives := make([]string, 0, len(fields)-1)
+	for _, field := range fields[1:] {
+		directive := strings.Trim(field, "\"")
+		if directive == "" {
+			continue
+		}
+		directives = append(directives, directive)
+	}
+	return directives
+}
+
+func resolveIncludeMatches(directive, sshDir string) ([]string, error) {
+	var pattern string
+	switch {
+	case filepath.IsAbs(directive):
+		pattern = directive
+	case strings.HasPrefix(directive, "~/"):
+		pattern = filepath.Join(os.Getenv("HOME"), directive[2:])
+	default:
+		pattern = filepath.Join(sshDir, directive)
+	}
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(matches)
+	return matches, nil
 }
 
 // parseHostTags extracts "#>tags: ..." comments from Host blocks.
