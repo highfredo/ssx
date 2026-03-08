@@ -19,8 +19,15 @@ type openTunnelViewMsg struct {
 	host *sshconfig.Host
 }
 
+// openOpenedTunnelsViewMsg navigates to the global opened-tunnels screen.
+type openOpenedTunnelsViewMsg struct{}
+
 // backMsg navigates back to the host list from the tunnel view.
 type backMsg struct{}
+
+type requestCloseTunnelMsg struct {
+	tunnelID string
+}
 
 // openTunnelResultMsg reports the result of an Open tunnel request.
 type openTunnelResultMsg struct {

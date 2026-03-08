@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,12 +51,16 @@ func (i hostItem) FilterValue() string {
 
 // HostList is the Bubble Tea model for the SSH host selection screen.
 // Navigation (j/k, ↑↓, PgUp/PgDn, /) is handled by the underlying
-// bubbles/list component. Custom keys (enter/c, t, q) are intercepted before
+// bubbles/list component. Custom keys (enter/c, t, o, q) are intercepted before
 // forwarding to the list.
 type HostList struct {
-	list  list.Model
-	hosts []*sshconfig.Host
+	list          list.Model
+	hosts         []*sshconfig.Host
+	lastClickHost string
+	lastClickAt   time.Time
 }
+
+const hostDoubleClickThreshold = 500 * time.Millisecond
 
 // NewHostList creates a HostList model from a slice of SSH hosts.
 func NewHostList(hosts []*sshconfig.Host) HostList {
@@ -102,6 +107,9 @@ func (h HostList) SelectedHost() *sshconfig.Host {
 // Custom keys are intercepted only when the list is not in filter mode.
 func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 	if mouse, ok := msg.(tea.MouseMsg); ok && h.list.FilterState() != list.Filtering {
+		newList, cmd := h.list.Update(msg)
+		h.list = newList
+
 		switch mouse.Button {
 		case tea.MouseButtonWheelUp:
 			h.list.CursorUp()
@@ -110,14 +118,32 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 			h.list.CursorDown()
 			return h, nil
 		case tea.MouseButtonLeft:
-			if host := h.SelectedHost(); host != nil {
+			if mouse.Action != tea.MouseActionRelease {
+				return h, cmd
+			}
+			host := h.SelectedHost()
+			if host == nil {
+				return h, cmd
+			}
+			now := time.Now()
+			if host.Name == h.lastClickHost && now.Sub(h.lastClickAt) <= hostDoubleClickThreshold {
+				h.lastClickHost = ""
+				h.lastClickAt = time.Time{}
 				return h, func() tea.Msg { return requestConnectMsg{host: host} }
 			}
+			h.lastClickHost = host.Name
+			h.lastClickAt = now
+			return h, cmd
 		case tea.MouseButtonRight:
+			if mouse.Action != tea.MouseActionRelease {
+				return h, cmd
+			}
 			if host := h.SelectedHost(); host != nil {
 				return h, func() tea.Msg { return openTunnelViewMsg{host: host} }
 			}
+			return h, cmd
 		}
+		return h, cmd
 	}
 
 	// Intercept key events when not filtering.
@@ -135,6 +161,9 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 			if host := h.SelectedHost(); host != nil {
 				return h, func() tea.Msg { return openTunnelViewMsg{host: host} }
 			}
+
+		case "o", "O":
+			return h, func() tea.Msg { return openOpenedTunnelsViewMsg{} }
 		}
 	}
 
@@ -145,6 +174,6 @@ func (h HostList) Update(msg tea.Msg) (HostList, tea.Cmd) {
 
 // View renders the host list.
 func (h HostList) View() string {
-	hint := helpStyle.Render("[enter/c] connect  [t] tunnel info  [q] quit")
+	hint := helpStyle.Render("[enter/c] connect  [t] tunnels  [o] opened tunnels  [q] quit")
 	return lipgloss.JoinVertical(lipgloss.Left, h.list.View(), hint)
 }

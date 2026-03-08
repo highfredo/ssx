@@ -9,6 +9,7 @@
 // Navigation flow:
 //
 //	HostList  --[t]--> TunnelView
+//	HostList  --[o]--> OpenedTunnelsView
 //	TunnelView --[esc/q]--> HostList
 //
 // SSH connections are executed with tea.ExecProcess, which suspends the TUI,
@@ -36,8 +37,9 @@ import (
 type viewState int
 
 const (
-	viewHostList  viewState = iota // Main host-selection screen.
-	viewTunnelMgr                  // Tunnel management screen for one host.
+	viewHostList      viewState = iota // Main host-selection screen.
+	viewTunnelMgr                      // Tunnel management screen for one host.
+	viewOpenedTunnels                  // Opened tunnels screen.
 )
 
 // App is the root Bubble Tea model. It owns top-level navigation and status
@@ -46,6 +48,7 @@ type App struct {
 	state          viewState
 	hostList       HostList
 	tunnelView     TunnelView
+	openedView     OpenedTunnelsView
 	tunnelMgr      tunnel.Manager
 	hosts          []*sshconfig.Host
 	width          int
@@ -128,6 +131,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.state == viewTunnelMgr {
 			a.tunnelView.SetSize(msg.Width, msg.Height)
 		}
+		if a.state == viewOpenedTunnels {
+			a.openedView.SetSize(msg.Width, msg.Height)
+		}
 		return a, nil
 
 	// ── Hard quit ─────────────────────────────────────────────────────────────
@@ -143,6 +149,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case requestOpenTunnelMsg:
 		return a, checkPortConflictCmd(a.tunnelMgr, msg.hostName, msg.tunnel)
+
+	case requestCloseTunnelMsg:
+		return a, closeTunnelCmd(a.tunnelMgr, msg.tunnelID)
 
 	case portConflictCheckMsg:
 		if msg.Err != nil {
@@ -169,6 +178,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = viewTunnelMgr
 		a.clearStatus()
 		return a, scanTunnelPortOwnersCmd(a.tunnelMgr, msg.host)
+
+	case openOpenedTunnelsViewMsg:
+		a.openedView = NewOpenedTunnelsView(a.collectOpenedTunnelRows(), a.width, a.height)
+		a.state = viewOpenedTunnels
+		a.clearStatus()
+		return a, nil
 
 	// ── Navigation: back to host list ────────────────────────────────────────
 	case backMsg:
@@ -210,7 +225,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// ── Refresh re-render request ─────────────────────────────────────────────
 	case refreshTunnelViewMsg:
-		// Nothing to update in state — View() pulls live data from the manager.
+		if a.state == viewOpenedTunnels {
+			a.openedView.RefreshRows(a.collectOpenedTunnelRows())
+		}
 		return a, nil
 
 	case tunnelPortOwnersMsg:
@@ -233,6 +250,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newTV, cmd := a.tunnelView.Update(msg)
 		a.tunnelView = newTV
 		return a, cmd
+
+	case viewOpenedTunnels:
+		newOV, cmd := a.openedView.Update(msg)
+		a.openedView = newOV
+		return a, cmd
 	}
 
 	return a, nil
@@ -247,6 +269,8 @@ func (a *App) View() string {
 		body = a.hostList.View()
 	case viewTunnelMgr:
 		body = a.tunnelView.View()
+	case viewOpenedTunnels:
+		body = a.openedView.View()
 	}
 
 	if a.passwordPrompt != nil {
@@ -393,10 +417,34 @@ func (a *App) renderKillPrompt() string {
 // maybeRefresh returns a refreshTunnelViewMsg command when the tunnel screen
 // is active, so it re-renders with the latest state from the manager.
 func (a *App) maybeRefresh() tea.Cmd {
-	if a.state == viewTunnelMgr {
+	if a.state == viewTunnelMgr || a.state == viewOpenedTunnels {
 		return func() tea.Msg { return refreshTunnelViewMsg{} }
 	}
 	return nil
+}
+
+func (a *App) collectOpenedTunnelRows() []openedTunnelRow {
+	var rows []openedTunnelRow
+	for _, h := range a.hosts {
+		for _, t := range h.Tunnels {
+			id := t.ID(h.Name)
+			if a.tunnelMgr.State(id) != tunnel.StateOpen {
+				continue
+			}
+			spec := t.DisplaySpec()
+			if t.Description != "" {
+				spec += "  # " + t.Description
+			}
+			rows = append(rows, openedTunnelRow{
+				TunnelID: id,
+				Host:     h.Name,
+				Tunnel:   t,
+				Spec:     spec,
+				State:    string(tunnel.StateOpen),
+			})
+		}
+	}
+	return rows
 }
 
 func (a *App) startOpenTunnel(hostName string, t sshconfig.Tunnel) tea.Cmd {

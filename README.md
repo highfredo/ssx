@@ -62,8 +62,9 @@ make run
 | (filter text) | Matches host alias, hostname, user, and tags |
 | `enter` / `c` | Connect to selected host via SSH |
 | `t` | Open tunnel management for selected host |
+| `o` | Show list of currently opened tunnels |
 | Mouse wheel | Move selection |
-| Left click | Connect selected host |
+| Left double click | Connect selected host |
 | Right click | Open tunnel management for selected host |
 | `q` | Quit |
 | `ctrl+c` | Force quit |
@@ -79,6 +80,17 @@ make run
 | Mouse wheel | Move selection |
 | Left click | Select tunnel (click selected row again to toggle) |
 | `esc` / `q` | Back to host list |
+
+### Opened Tunnels View
+
+| Key | Action |
+|---|---|
+| `j` / `↓` | Move down |
+| `k` / `↑` | Move up |
+| `enter` / `x` | Toggle selected tunnel (open/close) |
+| Mouse wheel | Move selection |
+| Left click | Select tunnel (click selected row again to toggle) |
+| `o` / `esc` / `q` | Back to host list |
 
 ---
 
