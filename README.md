@@ -10,6 +10,7 @@ A terminal user interface for managing SSH connections and tunnels, built with [
 |---|---|
 | Host list | Reads every non-wildcard `Host` entry from `~/.ssh/config` |
 | Tags | Reads host tags from `#>tags:` comments inside `Host` blocks |
+| Tunnel descriptions | Reads inline comments on forwarding directives (e.g. `LocalForward ... # web`) |
 | Connect | Press **`enter`** (or **`c`**) — opens interactive SSH without auto-applying tunnel forwards |
 | Tunnel view | Press **`t`** — shows all `LocalForward`, `RemoteForward`, `DynamicForward` for a host |
 | Open tunnel | Press **`o`** — starts `ssh -N` in the background |
@@ -81,9 +82,9 @@ Host dev-box
     HostName 10.0.0.5
     User ubuntu
     IdentityFile ~/.ssh/id_dev
-    LocalForward 8080 localhost:80
+    LocalForward 8080 localhost:80 # app web
     LocalForward 5432 db.internal:5432
-    DynamicForward 1080
+    DynamicForward 1080 # socks proxy
 
 Host prod
     #>tags: work, critical
@@ -99,6 +100,13 @@ Host prod
 Host mini
     #>tags: minipc, personal
     HostName 192.168.10.2
+```
+
+Tunnel descriptions can be placed as inline comments on forwarding lines:
+
+```sshconfig
+Host mini
+    LocalForward 8080 localhost:8080 # web server
 ```
 
 ---

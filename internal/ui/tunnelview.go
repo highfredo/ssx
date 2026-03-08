@@ -150,7 +150,11 @@ func (tv TunnelView) renderRow(idx int, t sshconfig.Tunnel) string {
 		Render(fmt.Sprintf("%-7s", strings.ToUpper(string(t.Type))))
 
 	// Forwarding specification — left-padded to 40 visible chars
-	spec := fmt.Sprintf("%-40s", t.DisplaySpec())
+	specText := t.DisplaySpec()
+	if t.Description != "" {
+		specText = fmt.Sprintf("%s  # %s", specText, t.Description)
+	}
+	spec := fmt.Sprintf("%-40s", specText)
 
 	// State indicator
 	var stateLabel string

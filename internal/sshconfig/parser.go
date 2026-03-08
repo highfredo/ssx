@@ -25,10 +25,11 @@ const (
 
 // Tunnel represents a single SSH port-forwarding rule parsed from ~/.ssh/config.
 type Tunnel struct {
-	Type       TunnelType
-	LocalPort  string // Bind port on the local machine.
-	RemoteHost string // Destination host (empty for dynamic).
-	RemotePort string // Destination port (empty for dynamic).
+	Type        TunnelType
+	LocalPort   string // Bind port on the local machine.
+	RemoteHost  string // Destination host (empty for dynamic).
+	RemotePort  string // Destination port (empty for dynamic).
+	Description string
 }
 
 // ID returns a stable, unique key for this tunnel scoped to a host alias.
@@ -76,6 +77,7 @@ func ParseConfig() ([]*Host, error) {
 		return nil, fmt.Errorf("parse ssh config: %w", err)
 	}
 	hostTags := parseHostTags(string(content))
+	hostTunnelDescriptions := parseHostTunnelDescriptions(string(content))
 
 	var hosts []*Host
 	for _, h := range cfg.Hosts {
@@ -98,13 +100,21 @@ func ParseConfig() ([]*Host, error) {
 			port = "22"
 		}
 
+		tunnels := parseTunnels(cfg, name)
+		if descriptions := hostTunnelDescriptions[name]; len(descriptions) > 0 {
+			for i := range tunnels {
+				if desc, ok := descriptions[tunnelDescriptorKey(tunnels[i])]; ok {
+					tunnels[i].Description = desc
+				}
+			}
+		}
 		hosts = append(hosts, &Host{
 			Name:     name,
 			Hostname: hostname,
 			User:     user,
 			Port:     port,
 			Tags:     hostTags[name],
-			Tunnels:  parseTunnels(cfg, name),
+			Tunnels:  tunnels,
 		})
 	}
 	return hosts, nil
@@ -174,6 +184,103 @@ func appendIfMissing(items []string, v string) []string {
 	return append(items, v)
 }
 
+func parseHostTunnelDescriptions(configText string) map[string]map[string]string {
+	descriptionsByAlias := make(map[string]map[string]string)
+	var currentAliases []string
+
+	scanner := bufio.NewScanner(strings.NewReader(configText))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) > 0 {
+			switch strings.ToLower(fields[0]) {
+			case "host":
+				currentAliases = nil
+				if len(fields) > 1 {
+					currentAliases = append(currentAliases, fields[1:]...)
+				}
+				continue
+			case "match":
+				currentAliases = nil
+			}
+		}
+
+		if len(currentAliases) == 0 || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		_, tunnel, description, ok := parseTunnelDirectiveLine(line)
+		if !ok || description == "" {
+			continue
+		}
+
+		key := tunnelDescriptorKey(tunnel)
+		for _, alias := range currentAliases {
+			if strings.ContainsAny(alias, "*?") || strings.HasPrefix(alias, "!") {
+				continue
+			}
+			if descriptionsByAlias[alias] == nil {
+				descriptionsByAlias[alias] = make(map[string]string)
+			}
+			descriptionsByAlias[alias][key] = description
+		}
+	}
+
+	return descriptionsByAlias
+}
+
+func parseTunnelDirectiveLine(line string) (string, Tunnel, string, bool) {
+	beforeComment, afterComment, _ := strings.Cut(line, "#")
+	description := strings.TrimSpace(afterComment)
+
+	fields := strings.Fields(strings.TrimSpace(beforeComment))
+	if len(fields) < 2 {
+		return "", Tunnel{}, "", false
+	}
+
+	directive := strings.ToLower(fields[0])
+	spec := strings.Join(fields[1:], " ")
+	switch directive {
+	case "localforward":
+		t, ok := parseForward(TunnelTypeLocal, spec)
+		return directive, t, description, ok
+	case "remoteforward":
+		t, ok := parseForward(TunnelTypeRemote, spec)
+		return directive, t, description, ok
+	case "dynamicforward":
+		t, ok := parseDynamicForward(spec)
+		return directive, t, description, ok
+	default:
+		return "", Tunnel{}, "", false
+	}
+}
+
+func parseDynamicForward(spec string) (Tunnel, bool) {
+	p := strings.TrimSpace(spec)
+	if p == "" {
+		return Tunnel{}, false
+	}
+	// Strip optional bind address (e.g. "127.0.0.1:1080" → "1080").
+	if idx := strings.LastIndex(p, ":"); idx >= 0 {
+		p = p[idx+1:]
+	}
+	if p == "" {
+		return Tunnel{}, false
+	}
+	return Tunnel{
+		Type:      TunnelTypeDynamic,
+		LocalPort: p,
+	}, true
+}
+
+func tunnelDescriptorKey(t Tunnel) string {
+	return fmt.Sprintf("%s|%s|%s|%s", t.Type, t.LocalPort, t.RemoteHost, t.RemotePort)
+}
+
 // parseTunnels extracts all configured tunnels for the given host alias.
 func parseTunnels(cfg *gossh.Config, alias string) []Tunnel {
 	var tunnels []Tunnel
@@ -196,16 +303,8 @@ func parseTunnels(cfg *gossh.Config, alias string) []Tunnel {
 
 	if dynFwds, _ := cfg.GetAll(alias, "DynamicForward"); len(dynFwds) > 0 {
 		for _, p := range dynFwds {
-			p = strings.TrimSpace(p)
-			// Strip optional bind address (e.g. "127.0.0.1:1080" → "1080").
-			if idx := strings.LastIndex(p, ":"); idx >= 0 {
-				p = p[idx+1:]
-			}
-			if p != "" {
-				tunnels = append(tunnels, Tunnel{
-					Type:      TunnelTypeDynamic,
-					LocalPort: p,
-				})
+			if t, ok := parseDynamicForward(p); ok {
+				tunnels = append(tunnels, t)
 			}
 		}
 	}
