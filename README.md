@@ -19,14 +19,29 @@ A terminal user interface for managing SSH connections and tunnels
 
 ## Install
 
-### Download binary
-
-Download the latest release from the [Releases page](https://github.com/highfredo/ssx/releases), extract and place the binary in your `$PATH`.
+### Linux / macOS
 
 ```sh
-# Example for Linux amd64
-curl -L https://github.com/highfredo/ssx/releases/latest/download/ssx_Linux_amd64.tar.gz | tar xz
-sudo mv ssx ~/.local/bin/
+curl -fsSL https://raw.githubusercontent.com/highfredo/ssx/main/scripts/install.sh | bash
+```
+
+Installs to `~/.local/bin` by default. Override with `INSTALL_DIR`:
+
+```sh
+INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/highfredo/ssx/main/scripts/install.sh | bash
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/highfredo/ssx/main/scripts/install.ps1 | iex
+```
+
+Installs to `%USERPROFILE%\.local\bin` by default. Override with `$env:INSTALL_DIR`:
+
+```powershell
+$env:INSTALL_DIR = "C:\Tools"
+irm https://raw.githubusercontent.com/highfredo/ssx/main/scripts/install.ps1 | iex
 ```
 
 ### Build from source
