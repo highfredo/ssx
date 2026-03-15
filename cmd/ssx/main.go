@@ -17,11 +17,31 @@ import (
 	"github.com/highfredo/ssx/internal/appconfig"
 	"github.com/highfredo/ssx/internal/ssh"
 	"github.com/highfredo/ssx/internal/ui"
+	"github.com/highfredo/ssx/internal/updater"
+)
+
+// from ldflags
+var (
+	version string
+	date    string
+	commit  string
 )
 
 func main() {
+	// Print version
+	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
+		fmt.Println("Version: " + version)
+		fmt.Println("Date: " + date)
+		fmt.Println("Commit: " + commit)
+		return
+	}
+
 	setupLogger()
-	slog.Info("ssx starting")
+	slog.Info("ssx starting", "version", version)
+
+	go func() {
+		updater.CheckAndUpdate(version)
+	}()
 
 	// Servicios
 	tunnelManager := ssh.NewTunnelManager()
