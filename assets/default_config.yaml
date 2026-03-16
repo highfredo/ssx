@@ -1,0 +1,47 @@
+# ssx configuration file
+# https://github.com/highfredo/ssx
+
+# Log level: "debug", "info", "warn" or "error" (default: "info").
+# Logs are written to /tmp/ssx.log.
+log_level: "info"
+
+# UI theme: customize the color palette.
+# Each value accepts a hex color (#RRGGBB), basic CSS name, or ANSI number.
+# Leave a field empty (or remove it) to keep the default color.
+#
+# Defaults (purple/indigo palette):
+# theme:
+#   primary:    "#7C3AED"   # accent / title background
+#   highlight:  "#1E1B4B"   # selected row background (dark)
+#   success:    "#10B981"   # open state / success messages
+#   muted:      "#6B7280"   # closed state / help text
+#   danger:     "#EF4444"   # errors
+#   border:     "#374151"   # panel borders
+# 	defaultTag: "#312E81"   # default tag color (used when no color is set in ~/.ssh/config)
+theme: {}
+
+# FTP/SFTP client configuration.
+#
+# client: preferred client to use: "winscp" or "filezilla"
+#         leave empty to auto-detect (WinSCP first, then FileZilla)
+# path:   optional custom path to the executable
+#         leave empty to search in default locations
+#
+# Example:
+# ftp:
+#   client: filezilla
+#   path: /usr/bin/filezilla
+ftp:
+  client: ""
+  path: ""
+
+# Tag colors: assign a background color (hex or CSS name) to each tag.
+# Colors defined here are used as fallback; colors in ~/.ssh/config take priority.
+#
+# Example:
+# tags:
+#   personal: "#10B981"
+#   work: "#3B82F6"
+#   production: "#EF4444"
+tags: {}
+

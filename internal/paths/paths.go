@@ -47,6 +47,12 @@ func AppConfigFile() string {
 	return filepath.Join(AppConfigDir(), "config.yaml")
 }
 
+// AppConfigSampleFile devuelve la ruta completa al fichero de configuración de ejemplo,
+// que se actualiza en cada nueva versión de ssx.
+func AppConfigSampleFile() string {
+	return filepath.Join(AppConfigDir(), "sample.config.yaml")
+}
+
 // SSHConfigFile devuelve la ruta al fichero de configuración SSH del usuario.
 func SSHConfigFile() string {
 	return filepath.Join(Home(), ".ssh", "config")

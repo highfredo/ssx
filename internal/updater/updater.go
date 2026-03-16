@@ -7,6 +7,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/creativeprojects/go-selfupdate"
+	"github.com/highfredo/ssx/internal/appconfig"
 )
 
 const (
@@ -51,6 +52,10 @@ func CheckAndUpdate(currentVersion string) (bool, error) {
 
 	if err := updater.UpdateTo(context.Background(), latest, exe); err != nil {
 		return false, err
+	}
+
+	if err := appconfig.WriteSampleConfig(); err != nil {
+		slog.Warn("no se pudo escribir sample.config.yaml", "err", err)
 	}
 
 	slog.Info("ssx updated", "version", latest.Version())
