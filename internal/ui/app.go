@@ -12,7 +12,7 @@ import (
 	"github.com/highfredo/ssx/internal/ui/tunnels"
 )
 
-var docStyle = lipgloss.NewStyle().Margin(1, 2)
+var docStyle = lipgloss.NewStyle().Margin(0, 1)
 
 type App struct {
 	rootPage base.Component

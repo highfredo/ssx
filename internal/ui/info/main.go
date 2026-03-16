@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -14,11 +15,19 @@ import (
 	"github.com/highfredo/ssx/internal/ui/searchbar"
 )
 
-var backKey = key.NewBinding(key.WithKeys("tab", "esc"), key.WithHelp("tab/esc", "back"))
+var (
+	backKey         = key.NewBinding(key.WithKeys("tab", "esc"), key.WithHelp("tab/esc", "back"))
+	showFullHelpKey = key.NewBinding(key.WithKeys("f1"), key.WithHelp("F1", "more keys"))
+
+	scrollUpKey     = key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "scroll up"))
+	scrollDownKey   = key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "scroll down"))
+	pageUpKey       = key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "page up"))
+	pageDownKey     = key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdn", "page down"))
+	halfPageUpKey   = key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "½ page up"))
+	halfPageDownKey = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "½ page down"))
+)
 
 var (
-	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).PaddingBottom(1)
-
 	keyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
 	matchStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FAFAFA")).Bold(true).Underline(true)
 	sectionStyle = lipgloss.NewStyle().
@@ -107,8 +116,21 @@ type InfoPage struct {
 	allLines []parsedLine
 	viewport viewport.Model
 	search   *searchbar.Model
+	help     help.Model
 	width    int
 	height   int
+}
+
+func (p *InfoPage) ShortHelp() []key.Binding {
+	return []key.Binding{backKey, scrollUpKey, scrollDownKey, showFullHelpKey}
+}
+
+func (p *InfoPage) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{backKey},
+		{scrollUpKey, scrollDownKey, pageUpKey, pageDownKey, halfPageUpKey, halfPageDownKey},
+		{showFullHelpKey},
+	}
 }
 
 func New(host *ssh.HostConfig) *InfoPage {
@@ -116,15 +138,20 @@ func New(host *ssh.HostConfig) *InfoPage {
 
 	vp := viewport.New()
 	vp.SoftWrap = true
-	// Deshabilitar atajos de letra para que no colisionen con el filtro
-	vp.KeyMap.HalfPageUp = key.NewBinding(key.WithKeys("ctrl+u"))
-	vp.KeyMap.HalfPageDown = key.NewBinding(key.WithKeys("ctrl+d"))
-	vp.KeyMap.PageUp = key.NewBinding(key.WithKeys("pgup"))
-	vp.KeyMap.PageDown = key.NewBinding(key.WithKeys("pgdown"))
-	vp.KeyMap.Up = key.NewBinding(key.WithKeys("up"))
-	vp.KeyMap.Down = key.NewBinding(key.WithKeys("down"))
+	vp.KeyMap.HalfPageUp = halfPageUpKey
+	vp.KeyMap.HalfPageDown = halfPageDownKey
+	vp.KeyMap.PageUp = pageUpKey
+	vp.KeyMap.PageDown = pageDownKey
+	vp.KeyMap.Up = scrollUpKey
+	vp.KeyMap.Down = scrollDownKey
 
-	p := &InfoPage{host: host, allLines: lines, viewport: vp, search: searchbar.New("Search: ")}
+	p := &InfoPage{
+		host:     host,
+		allLines: lines,
+		viewport: vp,
+		search:   searchbar.New("Search: "),
+		help:     help.New(),
+	}
 	p.refreshViewport()
 	return p
 }
@@ -143,6 +170,10 @@ func (p *InfoPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 				return p, nil
 			}
 			return p, func() tea.Msg { return base.OpenHostPageMsg{} }
+		}
+		if key.Matches(keyMsg, showFullHelpKey) {
+			p.help.ShowAll = !p.help.ShowAll
+			return p, nil
 		}
 		// Teclas de scroll → solo al viewport
 		if isScrollKey(keyMsg) {
@@ -166,38 +197,28 @@ func (p *InfoPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 func (p *InfoPage) SetSize(w, h int) {
 	p.width = w
 	p.height = h
-	p.layout()
-}
-
-func (p *InfoPage) layout() {
-	titleH := lipgloss.Height(styles.TitleStyle.Render("x"))
-	filterH := p.search.Height()
-	helpH := lipgloss.Height(helpStyle.Render("x"))
-
-	vpH := p.height - titleH - filterH - helpH - 1
-	if vpH < 1 {
-		vpH = 1
-	}
-	vpW := p.width
-	if vpW < 1 {
-		vpW = 1
-	}
-
-	p.search.SetWidth(vpW)
-	p.viewport.SetWidth(vpW)
-	p.viewport.SetHeight(vpH)
+	p.search.SetWidth(w)
+	p.viewport.SetWidth(w)
+	p.help.SetWidth(w)
 }
 
 func (p *InfoPage) View() string {
 	title := styles.TitleStyle.Render("SSH Config: " + p.host.Name)
-	help := helpStyle.Render(backKey.Help().Key + "  " + backKey.Help().Desc +
-		"   ↑↓/pgup/pgdn  scroll")
+	search := p.search.View()
+	helpView := p.help.View(p)
+
+	overhead := lipgloss.Height(title) + lipgloss.Height(search) + lipgloss.Height(helpView)
+	vpH := p.height - overhead
+	if vpH < 1 {
+		vpH = 1
+	}
+	p.viewport.SetHeight(vpH)
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		p.search.View(p.width),
+		search,
 		p.viewport.View(),
-		help,
+		helpView,
 	)
 }
 
@@ -324,6 +345,3 @@ func isScrollKey(msg tea.KeyPressMsg) bool {
 	))
 	return key.Matches(msg, scrollKeys)
 }
-
-// Garantiza que InfoPage implementa base.Component.
-var _ base.Component = (*InfoPage)(nil)

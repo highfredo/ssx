@@ -64,18 +64,19 @@ func New(items []list.Item, d list.ItemDelegate, w, h int) *Model {
 	l.KeyMap.AcceptWhileFiltering.SetEnabled(false)
 
 	// Arrow-only navigation avoids conflicts with filter text input.
-	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up"))
-	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down"))
+	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up"))
+	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down"))
 	l.KeyMap.PrevPage = key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "prev page"))
 	l.KeyMap.NextPage = key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdn", "next page"))
 	l.KeyMap.GoToStart = key.NewBinding(key.WithKeys("home"), key.WithHelp("home", "go to start"))
 	l.KeyMap.GoToEnd = key.NewBinding(key.WithKeys("end"), key.WithHelp("end", "go to end"))
+	l.KeyMap.Filter = key.NewBinding()
+	l.KeyMap.ClearFilter = key.NewBinding()
+	l.KeyMap.ShowFullHelp = key.NewBinding(key.WithKeys("f1"), key.WithHelp("F1", "more"))
+	l.KeyMap.CloseFullHelp = key.NewBinding(key.WithKeys("f1"), key.WithHelp("F1", "close help"))
 
 	// Apply title style centrally so callers only need to set l.Title.
 	l.Styles.Title = styles.TitleStyle
-
-	// Add bottom padding so the help bar is not flush against the terminal edge.
-	l.Styles.HelpStyle = l.Styles.HelpStyle.PaddingBottom(1)
 
 	l.SetShowHelp(false) // rendered manually below the counter in View()
 
@@ -118,9 +119,30 @@ func (l *Model) ClearFilter() {
 	l.ResetFilter()
 }
 
-// renderHelp returns the help bar rendered with the list's own style and key map.
-func (l *Model) renderHelp() string {
-	return l.Styles.HelpStyle.Render(l.Help.View(l.Model))
+func (l *Model) ShortHelp() []key.Binding {
+	var result []key.Binding
+	for _, b := range l.Model.ShortHelp() {
+		if b.Help().Key != "" {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+func (l *Model) FullHelp() [][]key.Binding {
+	var result [][]key.Binding
+	for _, group := range l.Model.FullHelp() {
+		var filtered []key.Binding
+		for _, b := range group {
+			if b.Help().Key != "" {
+				filtered = append(filtered, b)
+			}
+		}
+		if len(filtered) > 0 {
+			result = append(result, filtered)
+		}
+	}
+	return result
 }
 
 // Update routes key presses to the search bar, re-filters when the value
@@ -128,8 +150,6 @@ func (l *Model) renderHelp() string {
 // Navigation keys must be consumed by HandleKey before reaching this method.
 func (l *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
-
-	helpWas := l.Help.ShowAll
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		if handled := l.HandleKey(keyMsg); handled {
@@ -152,12 +172,6 @@ func (l *Model) Update(msg tea.Msg) tea.Cmd {
 	l.Model = newModel
 	cmds = append(cmds, listCmd)
 
-	// If the help was toggled (? key), recalculate layout so the list height
-	// accounts for the new help bar size.
-	if l.Help.ShowAll != helpWas && l.width > 0 && l.height > 0 {
-		l.layout()
-	}
-
 	return tea.Batch(cmds...)
 }
 
@@ -165,26 +179,38 @@ func (l *Model) Update(msg tea.Msg) tea.Cmd {
 func (l *Model) SetSize(w, h int) {
 	l.width = w
 	l.height = h
-	l.layout()
-}
-
-// layout computes and applies all size-dependent values. Called from SetSize
-// and whenever the help bar changes height (help toggle).
-func (l *Model) layout() {
-	w, h := l.width, l.height
-
 	l.search.SetWidth(w)
-
-	titleH := lipgloss.Height(l.Styles.TitleBar.Render(l.Styles.Title.Render(l.Title)))
-	filterH := l.search.Height()
-	counterH := 1
-	helpH := lipgloss.Height(l.renderHelp())
-
-	l.Model.SetSize(w, h-titleH-filterH-counterH-helpH)
+	l.Model.SetWidth(w)
 }
 
 // View renders: [title] | [search bar] | [list items + pagination] | [counter] | [help].
 func (l *Model) View() string {
+	title := l.renderTitle()
+	search := l.search.View()
+	status := l.renderStatus()
+	help := l.renderHelp()
+
+	overhead := lipgloss.Height(title) + lipgloss.Height(search) + lipgloss.Height(status) + lipgloss.Height(help)
+	listH := l.height - overhead
+	if listH < 0 {
+		listH = 0
+	}
+	l.Model.SetHeight(listH)
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		search,
+		l.Model.View(),
+		status,
+		help,
+	)
+}
+
+func (l *Model) renderTitle() string {
+	return l.Styles.Title.Render(l.Title)
+}
+
+func (l *Model) renderStatus() string {
 	total := len(l.Items())
 	visible := len(l.VisibleItems())
 	filter := l.search.Value()
@@ -196,13 +222,9 @@ func (l *Model) View() string {
 		status = fmt.Sprintf("%d items", total)
 	}
 
-	titleBar := l.Styles.TitleBar.Render(l.Styles.Title.Render(l.Title))
+	return l.Styles.StatusBar.Render(status)
+}
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		titleBar,
-		l.search.View(l.width),
-		l.Model.View(),
-		l.Styles.StatusBar.Render(status),
-		l.renderHelp(),
-	)
+func (l *Model) renderHelp() string {
+	return l.Help.View(l)
 }

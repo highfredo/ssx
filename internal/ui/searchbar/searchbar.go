@@ -45,7 +45,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Cmd, bool) {
 // View renderiza la barra completa al ancho total indicado.
 // El icono se coloca a la derecha. El input ya tiene el ancho correcto
 // gracias a SetWidth, por lo que no se aplica Width() adicional.
-func (m *Model) View(totalWidth int) string {
+func (m *Model) View() string {
 	iconStr := lipgloss.NewStyle().Foreground(styles.ColorMuted).Render(icon)
 	return styles.FilterBarStyle.Render(m.input.View() + iconStr)
 }
