@@ -20,14 +20,14 @@ var keys = struct {
 	CopyKey     key.Binding
 	Tunnels     key.Binding
 	OpenTunnels key.Binding
-	WinSCP      key.Binding
+	FTP         key.Binding
 	Info        key.Binding
 }{
 	Connect:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "connect")),
 	CopyKey:     key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "copy SSH key")),
 	Tunnels:     key.NewBinding(key.WithKeys("ctrl+t", "tab"), key.WithHelp("ctrl+t/tab", "tunnels")),
-	OpenTunnels: key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open tunnels")),
-	WinSCP:      key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "WinSCP")),
+	OpenTunnels: key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "opened tunnels")),
+	FTP:         key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "open FTP")),
 	Info:        key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "ssh info")),
 }
 
@@ -47,10 +47,10 @@ func New(hosts []*ssh.HostConfig) *HostPage {
 	l := list.New(items, d, 0, 0)
 	l.Title = "SSX"
 	l.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{keys.Connect, keys.CopyKey, keys.Tunnels, keys.Info}
+		return []key.Binding{keys.Tunnels, keys.FTP}
 	}
 	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{keys.Connect, keys.CopyKey, keys.Tunnels, keys.OpenTunnels, keys.WinSCP, keys.Info}
+		return []key.Binding{keys.Connect, keys.CopyKey, keys.Tunnels, keys.OpenTunnels, keys.FTP, keys.Info}
 	}
 
 	return &HostPage{list: l, hosts: hosts}
@@ -61,7 +61,7 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 		// Action keys — resolved against the currently selected item.
 		item, _ := m.list.SelectedItem().(item)
 		switch {
-		case key.Matches(keyMsg, keys.WinSCP):
+		case key.Matches(keyMsg, keys.FTP):
 			slog.Info("opening SFTP client", "name", item.host.Name)
 			h := item.host
 			return m, tea.Batch(
