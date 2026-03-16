@@ -3,14 +3,11 @@ BUILD_DIR := bin
 GO        := go
 MODULE    := github.com/highfredo/ssx
 
-VERSION  := $(shell git describe --tags --exact-match 2>/dev/null || echo dev)
-LDFLAGS  := -X main.version=$(VERSION)
-
 .PHONY: build run clean tidy vet fmt help
 
-## build: compile the binary to bin/ssx (from git)
+## build: compile the binary to bin/ssx
 build:
-	$(GO) build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) ./cmd/$(BINARY)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY) ./cmd/$(BINARY)
 
 ## run: build then run directly
 run: build
