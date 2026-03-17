@@ -7,7 +7,8 @@ import (
 )
 
 type item struct {
-	host *ssh.HostConfig
+	host           *ssh.HostConfig
+	isQuickConnect bool
 }
 
 func (i item) Title() string {
@@ -29,9 +30,14 @@ func (i item) Description() string {
 }
 
 func (i item) FilterValue() string {
+	if i.isQuickConnect {
+		return quickConnectFilterValue
+	}
 	parts := []string{i.host.Name, i.host.Hostname, i.host.User, i.host.Port}
 	for _, t := range i.host.Tags {
 		parts = append(parts, t.Name)
 	}
 	return strings.Join(parts, " ")
 }
+
+const quickConnectFilterValue = "__QUICK_HOST__"

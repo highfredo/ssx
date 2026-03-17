@@ -183,6 +183,10 @@ func (l *Model) SetSize(w, h int) {
 	l.Model.SetWidth(w)
 }
 
+func (l *Model) SearchValue() string {
+	return l.search.Value()
+}
+
 // View renders: [title] | [search bar] | [list items + pagination] | [counter] | [help].
 func (l *Model) View() string {
 	title := l.renderTitle()

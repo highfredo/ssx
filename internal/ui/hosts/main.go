@@ -18,28 +18,31 @@ import (
 )
 
 var keys = struct {
-	Connect     key.Binding
-	CopyKey     key.Binding
-	Tunnels     key.Binding
-	OpenTunnels key.Binding
-	FTP         key.Binding
-	Info        key.Binding
-	OpenSSHDir  key.Binding
-	OpenConfig  key.Binding
+	Connect      key.Binding
+	CopyKey      key.Binding
+	Tunnels      key.Binding
+	OpenTunnels  key.Binding
+	FTP          key.Binding
+	Info         key.Binding
+	OpenSSHDir   key.Binding
+	OpenConfig   key.Binding
+	QuickConnect key.Binding
 }{
-	Connect:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "connect")),
-	CopyKey:     key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "copy SSH key")),
-	Tunnels:     key.NewBinding(key.WithKeys("ctrl+t", "tab"), key.WithHelp("ctrl+t/tab", "tunnels")),
-	OpenTunnels: key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "opened tunnels")),
-	FTP:         key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "open FTP")),
-	Info:        key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "ssh info")),
-	OpenSSHDir:  key.NewBinding(key.WithKeys("ctrl+alt+p"), key.WithHelp("ctrl+alt+p", "open ssh config")),
-	OpenConfig:  key.NewBinding(key.WithKeys("ctrl+alt+s"), key.WithHelp("ctrl+alt+s", "open settings")),
+	Connect:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "connect")),
+	CopyKey:      key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "copy SSH key")),
+	Tunnels:      key.NewBinding(key.WithKeys("ctrl+t", "tab"), key.WithHelp("ctrl+t/tab", "tunnels")),
+	OpenTunnels:  key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "opened tunnels")),
+	FTP:          key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "open FTP")),
+	Info:         key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "ssh info")),
+	OpenSSHDir:   key.NewBinding(key.WithKeys("ctrl+alt+p"), key.WithHelp("ctrl+alt+p", "open ssh config")),
+	OpenConfig:   key.NewBinding(key.WithKeys("ctrl+alt+s"), key.WithHelp("ctrl+alt+s", "open settings")),
+	QuickConnect: key.NewBinding(key.WithKeys("ctrl+enter", "ctrl+j"), key.WithHelp("ctrl+enter", "quick connect")),
 }
 
 type HostPage struct {
-	list  *list.Model
-	hosts []*ssh.HostConfig
+	list      *list.Model
+	hosts     []*ssh.HostConfig
+	quickHost *ssh.HostConfig
 }
 
 func New(hosts []*ssh.HostConfig) *HostPage {
@@ -59,10 +62,29 @@ func New(hosts []*ssh.HostConfig) *HostPage {
 		return []key.Binding{
 			keys.Connect, keys.CopyKey, keys.Tunnels, keys.OpenTunnels,
 			keys.FTP, keys.Info, keys.OpenSSHDir, keys.OpenConfig,
+			keys.QuickConnect,
 		}
 	}
 
-	return &HostPage{list: l, hosts: hosts}
+	m := &HostPage{list: l, hosts: hosts}
+
+	// Quick connect host always should be at the end
+	l.Filter = func(term string, targets []string) []blist.Rank {
+		if len(targets) < 2 || targets[len(targets)-1] != quickConnectFilterValue {
+			return blist.DefaultFilter(term, targets)
+		}
+
+		realTargets := targets[:len(targets)-1]
+		ranks := blist.DefaultFilter(term, realTargets)
+		ranks = append(ranks, blist.Rank{
+			Index:          len(targets) - 1,
+			MatchedIndexes: []int{},
+		})
+
+		return ranks
+	}
+
+	return m
 }
 
 func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
@@ -96,6 +118,12 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 			return m, func() tea.Msg {
 				return OpenShellMsg{config: item.host}
 			}
+		case key.Matches(keyMsg, keys.QuickConnect):
+			if m.quickHost == nil {
+				return m, nil
+			}
+			slog.Info("quick connecting to host", "hostname", m.quickHost.Hostname)
+			return m, func() tea.Msg { return OpenShellMsg{config: m.quickHost} }
 		case key.Matches(keyMsg, keys.CopyKey):
 			slog.Info("ssh-copy-id confirm", "name", item.host.Name)
 			h := item.host
@@ -187,7 +215,32 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 		})
 	}
 
-	return m, m.list.Update(msg)
+	var cmds []tea.Cmd
+	oldSearchVal := m.list.SearchValue()
+	listCmd := m.list.Update(msg)
+
+	if oldSearchVal != m.list.SearchValue() {
+		itemsLen := len(m.list.Items())
+		if con := ssh.ParseConnection(m.list.SearchValue()); con != nil {
+			con.Name = "⚡Quick Connect"
+			m.quickHost = con
+			quickHost := item{host: con, isQuickConnect: true}
+			var insCmd tea.Cmd
+			if len(m.hosts) == itemsLen {
+				insCmd = m.list.InsertItem(itemsLen, quickHost)
+			} else {
+				insCmd = m.list.SetItem(itemsLen-1, quickHost)
+			}
+
+			cmds = append(cmds, insCmd)
+		} else if m.list.Items()[itemsLen-1].(item).isQuickConnect {
+			m.list.RemoveItem(itemsLen - 1)
+			m.quickHost = nil
+		}
+	}
+
+	cmds = append(cmds, listCmd)
+	return m, tea.Sequence(cmds...)
 }
 
 func (m *HostPage) SetSize(w, h int) {

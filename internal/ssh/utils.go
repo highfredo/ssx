@@ -3,9 +3,12 @@ package ssh
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -115,4 +118,78 @@ func FindDefaultKey() (string, error) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// validHostRe allows hostnames, FQDNs, plain IPv4 and IPv6 addresses
+// (brackets and colons are kept after net.SplitHostPort strips the brackets).
+var validHostRe = regexp.MustCompile(`^[a-zA-Z0-9._:\-\[\]%]+$`)
+
+// validUserRe follows POSIX portable filename character set for usernames.
+var validUserRe = regexp.MustCompile(`^[a-zA-Z0-9._\-]+$`)
+
+// ParseConnection parses a connection string like "user:pass@host:port"
+// and returns a temporary HostConfig if valid.
+// Supported formats:
+//
+//	[user[:password]@]host[:port]
+func ParseConnection(s string) *HostConfig {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+
+	var user, pass, host, port string
+
+	// Split user info from host info
+	if i := strings.LastIndex(s, "@"); i != -1 {
+		userInfo := s[:i]
+		hostInfo := s[i+1:]
+
+		if j := strings.Index(userInfo, ":"); j != -1 {
+			user = userInfo[:j]
+			pass = userInfo[j+1:]
+		} else {
+			user = userInfo
+		}
+		s = hostInfo
+	}
+
+	// Split host from port
+	if h, p, err := net.SplitHostPort(s); err == nil {
+		host = h
+		port = p
+	} else {
+		host = s
+	}
+
+	if host == "" {
+		return nil
+	}
+
+	// Validate host contains only valid characters
+	if !validHostRe.MatchString(host) {
+		return nil
+	}
+
+	// Validate user contains only valid characters (if provided)
+	if user != "" && !validUserRe.MatchString(user) {
+		return nil
+	}
+
+	if port == "" {
+		port = "22"
+	}
+
+	// Validate port is a number in the valid range
+	if p, err := strconv.Atoi(port); err != nil || p < 1 || p > 65535 {
+		return nil
+	}
+
+	return &HostConfig{
+		Name:     host,
+		Hostname: host,
+		User:     user,
+		Port:     port,
+		Password: pass,
+	}
 }
