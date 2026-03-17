@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/highfredo/ssx/internal/ssh"
+	"github.com/highfredo/ssx/internal/system"
 )
 
 // filezillaPaths lista los ejecutables de FileZilla por orden de preferencia.
@@ -54,12 +54,8 @@ func launchFilezilla(h *ssh.HostConfig, exe string) error {
 func launchFilezillaWindows(h *ssh.HostConfig, exe string) error {
 	slog.Info("launching FileZilla (Windows)", "host", h.Hostname)
 	url := buildURL(h.User, h.Hostname, h.Port, resolvePassword(h))
-	cmd := exec.Command(exe, url)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("filezilla: arranque: %w", err)
-	}
-	go func() { _ = cmd.Wait() }()
-	return nil
+	_, err := system.Run(exe, url)
+	return err
 }
 
 // launchFilezillaUnix abre FileZilla en Linux/macOS creando un directorio de
@@ -81,15 +77,15 @@ func launchFilezillaUnix(h *ssh.HostConfig, exe string) error {
 		return fmt.Errorf("filezilla: escribir sitemanager.xml: %w", err)
 	}
 
-	cmd := exec.Command(exe, "--datadir="+tempDir, "--site=temp")
-	if err := cmd.Start(); err != nil {
+	cmdRunner, err := system.Run(exe, "--datadir="+tempDir, "--site=temp")
+	if err != nil {
 		_ = os.RemoveAll(tempDir)
-		return fmt.Errorf("filezilla: arranque: %w", err)
+		return fmt.Errorf("filezilla: arranque: %w", exe)
 	}
-	go func() {
-		_ = cmd.Wait()
+
+	cmdRunner.OnExit(func(err error) {
 		_ = os.RemoveAll(tempDir)
-	}()
+	})
 
 	slog.Info("launching FileZilla (Unix)", "host", h.Hostname)
 	return nil

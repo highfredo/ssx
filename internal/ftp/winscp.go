@@ -3,9 +3,9 @@ package ftp
 import (
 	"log/slog"
 
-	"github.com/highfredo/ssx/internal/opener"
 	"github.com/highfredo/ssx/internal/paths"
 	"github.com/highfredo/ssx/internal/ssh"
+	"github.com/highfredo/ssx/internal/system"
 )
 
 var winscpPaths = []string{
@@ -27,5 +27,6 @@ func launchWinSCP(h *ssh.HostConfig, exe string) error {
 	}
 
 	slog.Info("launching WinSCP", "host", h.Hostname)
-	return opener.Open(exe, args...)
+	_, err := system.Run(exe, args...)
+	return err
 }

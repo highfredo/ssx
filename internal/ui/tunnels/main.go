@@ -7,8 +7,8 @@ import (
 	"charm.land/bubbles/v2/key"
 	blist "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"github.com/highfredo/ssx/internal/opener"
 	"github.com/highfredo/ssx/internal/ssh"
+	"github.com/highfredo/ssx/internal/system"
 	"github.com/highfredo/ssx/internal/ui/base"
 	"github.com/highfredo/ssx/internal/ui/list"
 	"github.com/highfredo/ssx/internal/ui/modal"
@@ -121,6 +121,6 @@ func (m *TunnelPage) OpenInBrowser(tunnel ssh.Tunnel) tea.Cmd {
 		}
 		url := fmt.Sprintf("%s://localhost:%s", scheme, tunnel.LocalPort)
 
-		return opener.Open("/mnt/c/Windows/explorer.exe", url)
+		return system.Open(url)
 	}
 }
