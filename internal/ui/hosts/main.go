@@ -9,7 +9,9 @@ import (
 	blist "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"github.com/highfredo/ssx/internal/ftp"
+	"github.com/highfredo/ssx/internal/paths"
 	"github.com/highfredo/ssx/internal/ssh"
+	"github.com/highfredo/ssx/internal/system"
 	"github.com/highfredo/ssx/internal/ui/base"
 	"github.com/highfredo/ssx/internal/ui/list"
 	"github.com/highfredo/ssx/internal/ui/modal"
@@ -22,6 +24,8 @@ var keys = struct {
 	OpenTunnels key.Binding
 	FTP         key.Binding
 	Info        key.Binding
+	OpenSSHDir  key.Binding
+	OpenConfig  key.Binding
 }{
 	Connect:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "connect")),
 	CopyKey:     key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "copy SSH key")),
@@ -29,6 +33,8 @@ var keys = struct {
 	OpenTunnels: key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "opened tunnels")),
 	FTP:         key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "open FTP")),
 	Info:        key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "ssh info")),
+	OpenSSHDir:  key.NewBinding(key.WithKeys("ctrl+alt+p"), key.WithHelp("ctrl+alt+p", "open ssh config")),
+	OpenConfig:  key.NewBinding(key.WithKeys("ctrl+alt+s"), key.WithHelp("ctrl+alt+s", "open settings")),
 }
 
 type HostPage struct {
@@ -50,7 +56,10 @@ func New(hosts []*ssh.HostConfig) *HostPage {
 		return []key.Binding{keys.Tunnels, keys.FTP}
 	}
 	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{keys.Connect, keys.CopyKey, keys.Tunnels, keys.OpenTunnels, keys.FTP, keys.Info}
+		return []key.Binding{
+			keys.Connect, keys.CopyKey, keys.Tunnels, keys.OpenTunnels,
+			keys.FTP, keys.Info, keys.OpenSSHDir, keys.OpenConfig,
+		}
 	}
 
 	return &HostPage{list: l, hosts: hosts}
@@ -103,6 +112,23 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 		case key.Matches(keyMsg, keys.Info):
 			slog.Info("opening ssh info", "name", item.host.Name)
 			return m, func() tea.Msg { return base.OpenInfoPageMsg{HostConfig: item.host} }
+		case key.Matches(keyMsg, keys.OpenSSHDir):
+			slog.Info("opening ~/.ssh directory")
+			return m, func() tea.Msg {
+				if err := system.Open("~/.ssh"); err != nil {
+					return modal.OpenAlert("Cannot open ~/.ssh", err.Error(), true)()
+				}
+				return nil
+			}
+		case key.Matches(keyMsg, keys.OpenConfig):
+			slog.Info("opening ssx config file")
+			cfgFile := paths.AppConfigFile()
+			return m, func() tea.Msg {
+				if err := system.Open(cfgFile); err != nil {
+					return modal.OpenAlert("Cannot open config", err.Error(), true)()
+				}
+				return nil
+			}
 		}
 	}
 
