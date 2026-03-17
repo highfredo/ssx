@@ -26,7 +26,7 @@ func ExpandTilde(path string) string {
 // ToWindows convierte una ruta Linux a su equivalente Windows usando wslpath.
 // Si la conversión falla devuelve la ruta original.
 func ToWindows(linuxPath string) string {
-	out, err := exec.Command("wslpath", "-w", linuxPath).Output()
+	out, err := exec.Command("wslpath", "-w", ExpandTilde(linuxPath)).Output()
 	if err != nil {
 		return linuxPath
 	}
@@ -70,4 +70,11 @@ func DataDir() string {
 		return filepath.Join(xdg, "ssx")
 	}
 	return filepath.Join(Home(), ".local", "share", "ssx")
+}
+
+func CacheDir() string {
+	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
+		return filepath.Join(xdg, "ssx")
+	}
+	return filepath.Join(Home(), ".cache", "ssx")
 }

@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/highfredo/ssx/internal/appconfig"
+	"github.com/highfredo/ssx/internal/paths"
 	"github.com/highfredo/ssx/internal/ssh"
 	"github.com/highfredo/ssx/internal/ui"
 	"github.com/highfredo/ssx/internal/updater"
@@ -60,14 +62,11 @@ func main() {
 	slog.Info("ssx exited cleanly")
 }
 
-// setupLogger redirects structured logs to /tmp/ssx.log so they don't
-// interfere with the TUI output. The log file can be tailed for debugging:
-//
-//	tail -f /tmp/ssx.log
 func setupLogger() {
-	f, err := os.OpenFile("/tmp/ssx.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logPath := filepath.Join(paths.CacheDir(), "ssx.log") // FIXME crear carpetas
+	_ = os.MkdirAll(logPath, 0o644)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		// Non-fatal: proceed without file logging.
 		return
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{
