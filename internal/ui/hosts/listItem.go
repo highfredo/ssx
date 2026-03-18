@@ -12,7 +12,7 @@ type item struct {
 }
 
 func (i item) Title() string {
-	return i.host.Name
+	return i.host.Title
 }
 
 func (i item) Description() string {

@@ -18,6 +18,7 @@ type Tag struct {
 }
 
 type HostConfig struct {
+	Title           string
 	Name            string   // The alias used after the Host keyword or comment if the Host entry.
 	Hostname        string   // Resolved HostName; always set (falls back to the alias/Name if absent).
 	User            string   // SSH user (User directive).
@@ -102,6 +103,16 @@ func collectHosts(cfg *gossh.Config, rootCfg *gossh.Config, seen map[string]bool
 			}
 		}
 
+		// Count distinct non-wildcard aliases on this Host line so we can
+		// disambiguate the Title when multiple aliases share the same comment.
+		nonWildcardCount := 0
+		for _, p := range host.Patterns {
+			if !strings.ContainsAny(p.String(), "*?") {
+				nonWildcardCount++
+			}
+		}
+		comment := strings.TrimSpace(host.EOLComment)
+
 		for _, pattern := range host.Patterns {
 			alias := pattern.String()
 			if strings.ContainsAny(alias, "*?") || seen[alias] {
@@ -111,6 +122,16 @@ func collectHosts(cfg *gossh.Config, rootCfg *gossh.Config, seen map[string]bool
 
 			if strings.EqualFold(extractComment(host.Nodes, ">hidden:"), "true") {
 				continue
+			}
+
+			var title string
+			switch {
+			case comment != "" && nonWildcardCount > 1:
+				title = fmt.Sprintf("%s (%s)", comment, alias)
+			case comment != "":
+				title = comment
+			default:
+				title = alias
 			}
 
 			tunnels := collectTunnelsFromNodes(host.Nodes)
@@ -132,6 +153,7 @@ func collectHosts(cfg *gossh.Config, rootCfg *gossh.Config, seen map[string]bool
 			proxyJump, _ := rootCfg.Get(alias, "ProxyJump")
 
 			hosts = append(hosts, &HostConfig{
+				Title:           title,
 				Name:            alias,
 				Hostname:        hostname,
 				User:            user,
