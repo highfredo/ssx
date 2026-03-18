@@ -27,16 +27,22 @@ func Run(config *HostConfig, args ...string) *exec.Cmd {
 func RunRemote(config *HostConfig, args []string, command []string) *exec.Cmd {
 	slog.Debug("running", "ssh", args, "command", command)
 	runArgs := append(args, buildSSHArgs(config)...)
-	runArgs = append(runArgs, config.Hostname)
-	runArgs = append(runArgs, command...)
 
 	cmd := exec.Command("ssh", runArgs...)
-	switch {
-	case config.Password != "":
+
+	if config.Password != "" {
 		ConfigurePassword(cmd, config.Password)
-	case config.PasswordCommand != "":
+	} else if config.PasswordCommand != "" {
 		ConfigurePasswordCommand(cmd, config.PasswordCommand)
+	} else {
+		cmd.Args = append(cmd.Args, "-o", "BatchMode=yes")
 	}
+
+	cmd.Args = append(cmd.Args, config.Hostname)
+	cmd.Args = append(cmd.Args, command...)
+
+	slog.Debug("SSH: ", "command", cmd.Args, "config", config)
+
 	return cmd
 }
 
