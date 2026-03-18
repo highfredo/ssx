@@ -31,37 +31,22 @@ func (d hostDelegate) Render(w io.Writer, m blist.Model, index int, listItem bli
 	d.DefaultDelegate.Render(&buf, m, index, listItem)
 	rendered := buf.String()
 
-	// Compute where the tags start inside FilterValue:
-	// FilterValue = "name hostname user port tag1 tag2 ..."
 	h := it.host
-	prefix := strings.Join([]string{h.Name, h.Hostname, h.User, h.Port}, " ")
-	tagOffset := len([]rune(prefix)) + 1 // +1 for the space before the first tag
-
-	matchedRunes := m.MatchesForItem(index)
+	filterTerm := m.FilterInput.Value()
 
 	renderedTags := make([]string, len(h.Tags))
 	for j, tag := range h.Tags {
-		tagRunes := []rune(tag.Name)
-
-		// Collect matched indices relative to this tag.
-		var rel []int
-		for _, r := range matchedRunes {
-			if r >= tagOffset && r < tagOffset+len(tagRunes) {
-				rel = append(rel, r-tagOffset)
-			}
-		}
-
 		chipStyle := tagChipStyle(tag)
 		unmatched := chipStyle.Inline(true)
 		matched := unmatched.Inherit(d.Styles.FilterMatch)
 
 		chipText := tag.Name
-		if len(rel) > 0 {
-			chipText = lipgloss.StyleRunes(tag.Name, rel, matched, unmatched)
+		if filterTerm != "" {
+			if ranks := blist.DefaultFilter(filterTerm, []string{tag.Name}); len(ranks) > 0 && len(ranks[0].MatchedIndexes) > 0 {
+				chipText = lipgloss.StyleRunes(tag.Name, ranks[0].MatchedIndexes, matched, unmatched)
+			}
 		}
 		renderedTags[j] = chipStyle.Render(chipText)
-
-		tagOffset += len(tagRunes) + 1 // advance past this tag and its trailing space
 	}
 	tagStr := " " + strings.Join(renderedTags, " ")
 

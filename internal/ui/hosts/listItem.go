@@ -33,10 +33,11 @@ func (i item) FilterValue() string {
 	if i.isQuickConnect {
 		return quickConnectFilterValue
 	}
-	parts := []string{i.host.Name, i.host.Hostname, i.host.User, i.host.Port}
+	parts := []string{i.host.Title}
 	for _, t := range i.host.Tags {
 		parts = append(parts, t.Name)
 	}
+	parts = append(parts, i.host.Name, i.host.Hostname, i.host.User, i.host.Port)
 	return strings.Join(parts, " ")
 }
 
