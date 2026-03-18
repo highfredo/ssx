@@ -67,7 +67,9 @@ func CopyId(config *HostConfig) (*exec.Cmd, error) {
 		key, key,
 	)
 
-	return RunRemote(config, nil, []string{remoteCmd}), nil
+	sshArgs := []string{"-o", "ClearAllForwardings=yes"}
+
+	return RunRemote(config, sshArgs, []string{remoteCmd}), nil
 }
 
 // buildSSHArgs returns the common SSH flags derived from config

@@ -154,27 +154,13 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 					}
 					msg.config.Password = password
 					return func() tea.Msg { return OpenShellMsg{config: msg.config} }
-				})
+				})()
 			}
 
 			return tea.Quit()
 		})
 
 	case SshCopyIdMsg:
-		askPassword := func() tea.Msg {
-			return modal.OpenPassword(msg.config.Hostname, func(password string, cancelled bool) tea.Cmd {
-				if cancelled {
-					return nil
-				}
-				msg.config.Password = password
-				return func() tea.Msg { return SshCopyIdMsg{config: msg.config} }
-			})
-		}
-
-		if msg.config.Password == "" && msg.config.PasswordCommand == "" {
-			return m, func() tea.Msg { return askPassword() }
-		}
-
 		cmd, err := ssh.CopyId(msg.config)
 		if err != nil {
 			slog.Error("ssh copy-id: no public key", "error", err)
@@ -184,7 +170,13 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 			if err != nil {
 				slog.Error("ssh copy-id failed", "host", msg.config.Hostname, "error", err)
 				msg.config.Password = ""
-				return askPassword()
+				return modal.OpenPassword(msg.config.Hostname, func(password string, cancelled bool) tea.Cmd {
+					if cancelled {
+						return nil
+					}
+					msg.config.Password = password
+					return func() tea.Msg { return SshCopyIdMsg{config: msg.config} }
+				})()
 			}
 			slog.Info("ssh copy-id succeeded", "host", msg.config.Hostname)
 			return modal.OpenAlert(
