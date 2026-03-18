@@ -15,17 +15,7 @@ import (
 	"github.com/highfredo/ssx/internal/ui/searchbar"
 )
 
-var (
-	backKey         = key.NewBinding(key.WithKeys("tab", "esc"), key.WithHelp("tab/esc", "back"))
-	showFullHelpKey = key.NewBinding(key.WithKeys("f1"), key.WithHelp("F1", "more keys"))
-
-	scrollUpKey     = key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "scroll up"))
-	scrollDownKey   = key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "scroll down"))
-	pageUpKey       = key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "page up"))
-	pageDownKey     = key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdn", "page down"))
-	halfPageUpKey   = key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "½ page up"))
-	halfPageDownKey = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "½ page down"))
-)
+var keys = base.Keys().Navigation
 
 var (
 	keyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
@@ -122,14 +112,14 @@ type InfoPage struct {
 }
 
 func (p *InfoPage) ShortHelp() []key.Binding {
-	return []key.Binding{backKey, scrollUpKey, scrollDownKey, showFullHelpKey}
+	return []key.Binding{keys.Back, keys.CursorUp, keys.CursorDown, keys.ShowFullHelp}
 }
 
 func (p *InfoPage) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{backKey},
-		{scrollUpKey, scrollDownKey, pageUpKey, pageDownKey, halfPageUpKey, halfPageDownKey},
-		{showFullHelpKey},
+		{keys.Back},
+		{keys.CursorUp, keys.CursorDown, keys.PrevPage, keys.NextPage, keys.HalfPageUp, keys.HalfPageDown},
+		{keys.ShowFullHelp},
 	}
 }
 
@@ -138,12 +128,12 @@ func New(host *ssh.HostConfig) *InfoPage {
 
 	vp := viewport.New()
 	vp.SoftWrap = true
-	vp.KeyMap.HalfPageUp = halfPageUpKey
-	vp.KeyMap.HalfPageDown = halfPageDownKey
-	vp.KeyMap.PageUp = pageUpKey
-	vp.KeyMap.PageDown = pageDownKey
-	vp.KeyMap.Up = scrollUpKey
-	vp.KeyMap.Down = scrollDownKey
+	vp.KeyMap.HalfPageUp = keys.HalfPageUp
+	vp.KeyMap.HalfPageDown = keys.HalfPageDown
+	vp.KeyMap.PageUp = keys.PrevPage
+	vp.KeyMap.PageDown = keys.NextPage
+	vp.KeyMap.Up = keys.CursorUp
+	vp.KeyMap.Down = keys.CursorDown
 
 	p := &InfoPage{
 		host:     host,
@@ -157,41 +147,38 @@ func New(host *ssh.HostConfig) *InfoPage {
 }
 
 func (p *InfoPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		// tab siempre vuelve atrás
-		if key.Matches(keyMsg, key.NewBinding(key.WithKeys("tab"))) {
-			return p, func() tea.Msg { return base.OpenHostPageMsg{} }
-		}
-		// esc: si hay filtro → limpiar; si no → volver
-		if key.Matches(keyMsg, key.NewBinding(key.WithKeys("esc"))) {
+		// back key: esc clears filter first if active, then navigates back
+		if key.Matches(keyMsg, keys.Back) {
 			if p.search.Value() != "" {
 				p.search.SetValue("")
 				p.refreshViewport()
 				return p, nil
 			}
 			return p, func() tea.Msg { return base.OpenHostPageMsg{} }
-		}
-		if key.Matches(keyMsg, showFullHelpKey) {
+		} else if key.Matches(keyMsg, keys.ShowFullHelp) {
 			p.help.ShowAll = !p.help.ShowAll
 			return p, nil
 		}
-		// Teclas de scroll → solo al viewport
-		if isScrollKey(keyMsg) {
-			var cmd tea.Cmd
-			p.viewport, cmd = p.viewport.Update(msg)
-			return p, cmd
-		}
 	}
 
-	// Resto de teclas → searchbar (tipeo del filtro)
+	// Update viewport
+	newModel, listCmd := p.viewport.Update(msg)
+	p.viewport = newModel
+	cmds = append(cmds, listCmd)
+
+	// Update search
 	var searchCmd tea.Cmd
 	var changed bool
 	searchCmd, changed = p.search.Update(msg)
 	if changed {
 		p.refreshViewport()
 	}
+	cmds = append(cmds, searchCmd)
 
-	return p, searchCmd
+	return p, tea.Batch(cmds...)
 }
 
 func (p *InfoPage) SetSize(w, h int) {
@@ -336,12 +323,4 @@ func parseSSHG(host *ssh.HostConfig) []parsedLine {
 		}
 	}
 	return lines
-}
-
-// isScrollKey indica si la tecla debe enviarse solo al viewport.
-func isScrollKey(msg tea.KeyPressMsg) bool {
-	scrollKeys := key.NewBinding(key.WithKeys(
-		"up", "down", "pgup", "pgdown", "ctrl+u", "ctrl+d",
-	))
-	return key.Matches(msg, scrollKeys)
 }

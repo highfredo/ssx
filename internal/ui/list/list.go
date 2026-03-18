@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/highfredo/ssx/internal/styles"
+	"github.com/highfredo/ssx/internal/ui/base"
 	"github.com/highfredo/ssx/internal/ui/searchbar"
 )
 
@@ -48,6 +49,8 @@ func NewDefaultDelegate() list.DefaultDelegate {
 
 // New creates a Model configured for always-active filtering.
 func New(items []list.Item, d list.ItemDelegate, w, h int) *Model {
+	keys := base.Keys().Navigation
+
 	l := list.New(items, d, w, h)
 	l.SetShowStatusBar(false)
 	// Title and filter are rendered manually in View(), so hide them from the
@@ -64,16 +67,16 @@ func New(items []list.Item, d list.ItemDelegate, w, h int) *Model {
 	l.KeyMap.AcceptWhileFiltering.SetEnabled(false)
 
 	// Arrow-only navigation avoids conflicts with filter text input.
-	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up"))
-	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down"))
-	l.KeyMap.PrevPage = key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "prev page"))
-	l.KeyMap.NextPage = key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdn", "next page"))
-	l.KeyMap.GoToStart = key.NewBinding(key.WithKeys("home"), key.WithHelp("home", "go to start"))
-	l.KeyMap.GoToEnd = key.NewBinding(key.WithKeys("end"), key.WithHelp("end", "go to end"))
+	l.KeyMap.CursorUp = keys.CursorUp
+	l.KeyMap.CursorDown = keys.CursorDown
+	l.KeyMap.PrevPage = keys.PrevPage
+	l.KeyMap.NextPage = keys.NextPage
+	l.KeyMap.GoToStart = keys.GoToStart
+	l.KeyMap.GoToEnd = keys.GoToEnd
 	l.KeyMap.Filter = key.NewBinding()
 	l.KeyMap.ClearFilter = key.NewBinding()
-	l.KeyMap.ShowFullHelp = key.NewBinding(key.WithKeys("f1"), key.WithHelp("F1", "more"))
-	l.KeyMap.CloseFullHelp = key.NewBinding(key.WithKeys("f1"), key.WithHelp("F1", "close help"))
+	l.KeyMap.ShowFullHelp = keys.ShowFullHelp
+	l.KeyMap.CloseFullHelp = keys.CloseFullHelp
 
 	// Apply title style centrally so callers only need to set l.Title.
 	l.Styles.Title = styles.TitleStyle

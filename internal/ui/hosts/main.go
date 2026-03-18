@@ -17,33 +17,13 @@ import (
 	"github.com/highfredo/ssx/internal/ui/modal"
 )
 
-var keys = struct {
-	Connect      key.Binding
-	CopyKey      key.Binding
-	Tunnels      key.Binding
-	OpenTunnels  key.Binding
-	FTP          key.Binding
-	Info         key.Binding
-	OpenSSHDir   key.Binding
-	OpenConfig   key.Binding
-	QuickConnect key.Binding
-}{
-	Connect:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "connect")),
-	CopyKey:      key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "copy SSH key")),
-	Tunnels:      key.NewBinding(key.WithKeys("ctrl+t", "tab"), key.WithHelp("ctrl+t/tab", "tunnels")),
-	OpenTunnels:  key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "opened tunnels")),
-	FTP:          key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "open FTP")),
-	Info:         key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "ssh info")),
-	OpenSSHDir:   key.NewBinding(key.WithKeys("ctrl+alt+p"), key.WithHelp("ctrl+alt+p", "open ssh config")),
-	OpenConfig:   key.NewBinding(key.WithKeys("ctrl+alt+s"), key.WithHelp("ctrl+alt+s", "open settings")),
-	QuickConnect: key.NewBinding(key.WithKeys("ctrl+enter", "ctrl+j"), key.WithHelp("ctrl+enter", "quick connect")),
-}
-
 type HostPage struct {
 	list      *list.Model
 	hosts     []*ssh.HostConfig
 	quickHost *ssh.HostConfig
 }
+
+var keys = base.Keys().Hosts
 
 func New(hosts []*ssh.HostConfig) *HostPage {
 	items := make([]blist.Item, len(hosts))
@@ -222,7 +202,7 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 	if oldSearchVal != m.list.SearchValue() {
 		itemsLen := len(m.list.Items())
 		if con := ssh.ParseConnection(m.list.SearchValue()); con != nil {
-			con.Name = "⚡Quick Connect"
+			con.Title = "⚡Quick Connect"
 			m.quickHost = con
 			quickHost := item{host: con, isQuickConnect: true}
 			var insCmd tea.Cmd

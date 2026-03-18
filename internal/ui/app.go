@@ -3,6 +3,7 @@ package ui
 import (
 	"log/slog"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/highfredo/ssx/internal/ssh"
@@ -52,8 +53,7 @@ func (a App) Init() tea.Cmd {
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		key := msg.String()
-		if key == "ctrl+c" {
+		if key.Matches(msg, base.Keys().Quit) {
 			return a, tea.Quit
 		}
 	case tea.WindowSizeMsg:

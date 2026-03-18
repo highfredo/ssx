@@ -45,3 +45,38 @@ ftp:
 #   production: "#EF4444"
 tags: {}
 
+# Keyboard shortcuts: customize key bindings for every action.
+# Each value is a space-separated list of keys (e.g. "ctrl+t tab").
+# Leave a field empty (or remove it) to keep the default.
+#
+# keybindings:
+#   quit: "ctrl+c"           # quit the application
+#
+#   hosts:                   # host list page
+#     connect:       "enter"              # connect to the selected host
+#     copy_key:      "ctrl+a"             # ssh-copy-id to the selected host
+#     tunnels:       "ctrl+t tab"         # open tunnel manager for the host
+#     open_tunnels:  "ctrl+o"             # view all currently open tunnels
+#     ftp:           "ctrl+x"             # launch SFTP client
+#     info:          "ctrl+g"             # show effective SSH config (ssh -G)
+#     open_ssh_dir:  "ctrl+alt+p"         # open ~/.ssh in file manager
+#     open_config:   "ctrl+alt+s"         # open ssx config file
+#     quick_connect: "ctrl+enter ctrl+j"  # connect to typed hostname directly
+#
+#   tunnels:                 # tunnel page
+#     toggle:  "enter"       # open/close the selected tunnel
+#     browser: "ctrl+x"      # open tunnel URL in browser
+#
+#   navigation:              # shared by all lists AND the info scroll view
+#     cursor_up:      "up"       # move cursor / scroll up one line
+#     cursor_down:    "down"     # move cursor / scroll down one line
+#     prev_page:      "pgup"     # previous page / scroll up one page
+#     next_page:      "pgdown"   # next page / scroll down one page
+#     go_to_start:    "home"     # jump to first item
+#     go_to_end:      "end"      # jump to last item
+#     show_full_help: "f1"       # toggle full help panel (open and close)
+#     half_page_up:   "ctrl+u"   # scroll up half page (info view)
+#     half_page_down: "ctrl+d"   # scroll down half page (info view)
+#     back:           "tab esc"  # go back / clear filter (info view)
+
+

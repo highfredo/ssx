@@ -14,21 +14,14 @@ import (
 	"github.com/highfredo/ssx/internal/ui/modal"
 )
 
-var keys = struct {
-	Toggle  key.Binding
-	Browser key.Binding
-	Back    key.Binding
-}{
-	Toggle:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "toggle tunnel")),
-	Browser: key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "open in browser")),
-	Back:    key.NewBinding(key.WithKeys("esc", "tab"), key.WithHelp("esc/tab", "back")),
-}
-
 type TunnelPage struct {
 	list    *list.Model
 	tunnels []ssh.Tunnel
 	manager *ssh.TunnelManager
 }
+
+var keys = base.Keys().Tunnels
+var navKeys = base.Keys().Navigation
 
 func New(title string, tunnels []ssh.Tunnel, manager *ssh.TunnelManager) *TunnelPage {
 	items := make([]blist.Item, len(tunnels))
@@ -42,10 +35,10 @@ func New(title string, tunnels []ssh.Tunnel, manager *ssh.TunnelManager) *Tunnel
 	l := list.New(items, d, 0, 0)
 	l.Title = title
 	l.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{keys.Toggle, keys.Browser, keys.Back}
+		return []key.Binding{keys.Toggle, keys.Browser, navKeys.Back}
 	}
 	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{keys.Toggle, keys.Browser, keys.Back}
+		return []key.Binding{keys.Toggle, keys.Browser, navKeys.Back}
 	}
 
 	return &TunnelPage{list: l, tunnels: tunnels, manager: manager}
@@ -56,7 +49,7 @@ func (m *TunnelPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 		// Action keys — resolved against the currently selected item.
 		item, _ := m.list.SelectedItem().(item)
 		switch {
-		case key.Matches(keyMsg, keys.Back):
+		case key.Matches(keyMsg, navKeys.Back):
 			return m, func() tea.Msg { return base.OpenHostPageMsg{} }
 		case key.Matches(keyMsg, keys.Toggle):
 			return m, m.ToggleTunnel(item.tunnel, item.tunnelStatus, item.portStatus)
