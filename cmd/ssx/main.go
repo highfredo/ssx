@@ -63,8 +63,8 @@ func main() {
 }
 
 func setupLogger() {
-	logPath := filepath.Join(paths.CacheDir(), "ssx.log") // FIXME crear carpetas
-	_ = os.MkdirAll(logPath, 0o644)
+	_ = os.MkdirAll(paths.CacheDir(), 0o655)
+	logPath := filepath.Join(paths.CacheDir(), "ssx.log")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return
