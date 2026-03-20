@@ -4,12 +4,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/highfredo/ssx/internal/system"
 )
 
 // configureAskpass creates a temporary askpass script with the given content,
 // sets SSH_ASKPASS / SSH_ASKPASS_REQUIRE on cmd, and returns a cleanup func.
 func configureAskpass(cmd *exec.Cmd, script string, extraEnv ...string) (func(), error) {
-	f, err := os.CreateTemp("", "ssx-askpass-*")
+	pattern := "ssx-askpass-*"
+	if system.IsWindows {
+		pattern += ".bat"
+	}
+
+	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return nil, fmt.Errorf("create askpass script: %w", err)
 	}
@@ -25,9 +32,11 @@ func configureAskpass(cmd *exec.Cmd, script string, extraEnv ...string) (func(),
 		cleanup()
 		return nil, fmt.Errorf("close askpass script: %w", err)
 	}
-	if err := os.Chmod(scriptPath, 0o700); err != nil {
-		cleanup()
-		return nil, fmt.Errorf("chmod askpass script: %w", err)
+	if !system.IsWindows {
+		if err := os.Chmod(scriptPath, 0o700); err != nil {
+			cleanup()
+			return nil, fmt.Errorf("chmod askpass script: %w", err)
+		}
 	}
 
 	cmd.Env = append(os.Environ(),
@@ -44,7 +53,12 @@ func ConfigurePassword(cmd *exec.Cmd, password string) (func(), error) {
 	if password == "" {
 		return func() {}, nil
 	}
-	const script = "#!/bin/sh\nprintf '%s\\n' \"$SSX_PASSWORD\"\n"
+	var script string
+	if system.IsWindows {
+		script = "@powershell -NoProfile -NonInteractive -Command \"Write-Output $env:SSX_PASSWORD\"\r\n"
+	} else {
+		script = "#!/bin/sh\nprintf '%s\\n' \"$SSX_PASSWORD\"\n"
+	}
 	return configureAskpass(cmd, script, "SSX_PASSWORD="+password)
 }
 
@@ -54,6 +68,11 @@ func ConfigurePasswordCommand(cmd *exec.Cmd, passwordCommand string) (func(), er
 	if passwordCommand == "" {
 		return func() {}, nil
 	}
-	script := "#!/bin/sh\n" + passwordCommand + "\n"
+	var script string
+	if system.IsWindows {
+		script = "@cmd /c " + passwordCommand + "\r\n"
+	} else {
+		script = "#!/bin/sh\n" + passwordCommand + "\n"
+	}
 	return configureAskpass(cmd, script)
 }
