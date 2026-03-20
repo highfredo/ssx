@@ -154,14 +154,19 @@ func (l *Model) FullHelp() [][]key.Binding {
 func (l *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		if handled := l.HandleKey(keyMsg); handled {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		if handled := l.HandleKey(msg); handled {
 			return nil
 		}
 		// Feed the key to the search bar.
-		var searchCmd tea.Cmd
-		var changed bool
-		searchCmd, changed = l.search.Update(msg)
+		searchCmd, changed := l.search.Update(msg)
+		cmds = append(cmds, searchCmd)
+		if changed {
+			l.SetFilterText(l.search.Value())
+		}
+	case tea.PasteMsg:
+		searchCmd, changed := l.search.Update(msg)
 		cmds = append(cmds, searchCmd)
 
 		if changed {
