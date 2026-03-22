@@ -50,7 +50,7 @@ func New(hosts []*ssh.HostConfig) *HostPage {
 
 	// Quick connect host always should be at the end
 	l.Filter = func(term string, targets []string) []blist.Rank {
-		if len(targets) < 2 || targets[len(targets)-1] != quickConnectFilterValue {
+		if len(targets) == 0 || targets[len(targets)-1] != quickConnectFilterValue {
 			return blist.DefaultFilter(term, targets)
 		}
 
