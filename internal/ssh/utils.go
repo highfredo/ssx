@@ -97,7 +97,7 @@ func buildSSHArgs(config *HostConfig) []string {
 	if config.ProxyJump != "" {
 		args = append(args, "-J", config.ProxyJump)
 	}
-	args = append(args, "-o", "NumberOfPasswordPrompts=1")
+	args = append(args, "-o", "StrictHostKeyChecking=accept-new")
 	return args
 }
 
