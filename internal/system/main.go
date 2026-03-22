@@ -1,8 +1,6 @@
 package system
 
 import (
-	"errors"
-	"os"
 	"os/exec"
 
 	"github.com/highfredo/ssx/internal/paths"
@@ -25,10 +23,6 @@ func (r *CmdRunner) OnExit(fn func(error)) {
 }
 
 func Run(path string, args ...string) (*CmdRunner, error) {
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-
 	cmd := exec.Command(path, args...)
 
 	if err := cmd.Start(); err != nil {
@@ -62,7 +56,6 @@ func Open(uri string) error {
 		opener = "xdg-open"
 	}
 
-	_, err := Run(opener, target)
-
-	return err
+	cmd := exec.Command(opener, target)
+	return cmd.Start()
 }
