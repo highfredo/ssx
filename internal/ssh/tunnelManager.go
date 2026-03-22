@@ -75,10 +75,10 @@ func (m *TunnelManager) Open(tunnel Tunnel) {
 		args = append(args, "-D", tunnel.LocalPort)
 	}
 
-	// Run ssh command
+	// PrepareCmd ssh command
 	h := GetHost(tunnel.Host)
 	slog.Info("Opening", "tunnel", tunnel)
-	cmd := Run(h, args...)
+	cmd := PrepareCmd(h, args...)
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
@@ -101,6 +101,7 @@ func (m *TunnelManager) Open(tunnel Tunnel) {
 			slog.Debug("ssh", "id", id, "stderr", line)
 			if isForwardingReady(tunnel.Type, line) {
 				slog.Info("tunnel forwarding ready", "id", id, "pid", cmd.Process.Pid)
+				cmd.CleanFn()
 				m.mapNotifier.Set(id, cmd.Process.Pid)
 			}
 		}
