@@ -142,41 +142,29 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case OpenShellMsg:
-		slog.Error("abriendo shell", "name", msg.config.Name)
-		cmd := ssh.Shell(msg.config)
-		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-			// FIXME no todo error es que la contrseña este mal
+		slog.Info("opening shell", "name", msg.config.Name)
+		sshCmd := ssh.Shell(msg.config)
+		return m, tea.ExecProcess(sshCmd.Cmd, func(err error) tea.Msg {
+			sshCmd.CleanFn()
 			if err != nil {
 				slog.Error("error abriendo shell", "error", err)
-				return modal.OpenPassword(msg.config.Name, func(password string, cancelled bool) tea.Cmd {
-					if cancelled {
-						return nil
-					}
-					msg.config.Password = password
-					return func() tea.Msg { return OpenShellMsg{config: msg.config} }
-				})()
+				return tea.Quit()
 			}
 
-			return tea.Quit()
+			return nil
 		})
 
 	case SshCopyIdMsg:
-		cmd, err := ssh.CopyId(msg.config)
+		sshCmd, err := ssh.CopyId(msg.config)
 		if err != nil {
 			slog.Error("ssh copy-id: no public key", "error", err)
 			return m, modal.OpenAlert("No public key found", err.Error(), true)
 		}
-		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return m, tea.ExecProcess(sshCmd.Cmd, func(err error) tea.Msg {
+			sshCmd.CleanFn()
 			if err != nil {
 				slog.Error("ssh copy-id failed", "host", msg.config.Hostname, "error", err)
-				msg.config.Password = ""
-				return modal.OpenPassword(msg.config.Hostname, func(password string, cancelled bool) tea.Cmd {
-					if cancelled {
-						return nil
-					}
-					msg.config.Password = password
-					return func() tea.Msg { return SshCopyIdMsg{config: msg.config} }
-				})()
+				return tea.Quit()
 			}
 			slog.Info("ssh copy-id succeeded", "host", msg.config.Hostname)
 			return modal.OpenAlert(

@@ -12,30 +12,36 @@ import (
 	"strings"
 )
 
-func Shell(config *HostConfig) *exec.Cmd {
-	return Run(config,
+type Cmd struct {
+	*exec.Cmd
+	CleanFn func()
+}
+
+func Shell(config *HostConfig) *Cmd {
+	return PrepareCmd(config,
 		"-o", "ClearAllForwardings=yes",
 	)
 }
 
-// Run builds an interactive ssh command (no remote command).
+// PrepareCmd builds an interactive ssh command (no remote command).
 // Extra flags in args are prepended before the common options.
-func Run(config *HostConfig, args ...string) *exec.Cmd {
-	return RunRemote(config, args, []string{})
+func PrepareCmd(config *HostConfig, args ...string) *Cmd {
+	return PrepareCmdWithCommand(config, args, []string{})
 }
 
-func RunRemote(config *HostConfig, args []string, command []string) *exec.Cmd {
+func PrepareCmdWithCommand(config *HostConfig, args []string, command []string) *Cmd {
 	slog.Debug("running", "ssh", args, "command", command)
 	runArgs := append(args, buildSSHArgs(config)...)
 
-	cmd := exec.Command("ssh", runArgs...)
+	cmd := &Cmd{
+		Cmd:     exec.Command("ssh", runArgs...),
+		CleanFn: func() {},
+	}
 
 	if config.Password != "" {
-		ConfigurePassword(cmd, config.Password)
+		cmd.CleanFn, _ = ConfigurePassword(cmd.Cmd, config.Password)
 	} else if config.PasswordCommand != "" {
-		ConfigurePasswordCommand(cmd, config.PasswordCommand)
-	} else {
-		cmd.Args = append(cmd.Args, "-o", "BatchMode=yes")
+		cmd.CleanFn, _ = ConfigurePasswordCommand(cmd.Cmd, config.PasswordCommand)
 	}
 
 	cmd.Args = append(cmd.Args, config.Hostname)
@@ -49,7 +55,7 @@ func RunRemote(config *HostConfig, args []string, command []string) *exec.Cmd {
 // CopyId builds an ssh command that installs the local public key on the
 // remote host in a single connection, avoiding the ssh-copy-id double-connect
 // hang. It reads the public key locally and embeds it in the remote command.
-func CopyId(config *HostConfig) (*exec.Cmd, error) {
+func CopyId(config *HostConfig) (*Cmd, error) {
 	pubKeyPath, err := FindPublicKey(config)
 	if err != nil {
 		return nil, err
@@ -69,7 +75,7 @@ func CopyId(config *HostConfig) (*exec.Cmd, error) {
 
 	sshArgs := []string{"-o", "ClearAllForwardings=yes"}
 
-	return RunRemote(config, sshArgs, []string{remoteCmd}), nil
+	return PrepareCmdWithCommand(config, sshArgs, []string{remoteCmd}), nil
 }
 
 // buildSSHArgs returns the common SSH flags derived from config
