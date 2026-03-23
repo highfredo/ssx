@@ -44,6 +44,15 @@ func New(title string, tunnels []ssh.Tunnel, manager *ssh.TunnelManager) *Tunnel
 	return &TunnelPage{list: l, tunnels: tunnels, manager: manager}
 }
 
+func (m *TunnelPage) Init() tea.Cmd {
+	return func() tea.Msg {
+		for _, tunnel := range m.tunnels {
+			m.manager.RefreshStatus(tunnel)
+		}
+		return nil
+	}
+}
+
 func (m *TunnelPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		// Action keys — resolved against the currently selected item.
@@ -58,11 +67,13 @@ func (m *TunnelPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 		}
 	}
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case ssh.TunnelStateChangedMsg:
 		for i, t := range m.tunnels {
-			tunnelStatus, portStatus := m.manager.Status(t)
-			m.list.SetItem(i, item{tunnel: t, tunnelStatus: tunnelStatus, portStatus: portStatus})
+			if ssh.TunnelID(t) == msg.ID {
+				m.list.SetItem(i, item{tunnel: t, tunnelStatus: msg.TunnelStatus, portStatus: msg.PortStatus})
+				break
+			}
 		}
 		return m, nil
 	}

@@ -51,8 +51,8 @@ func main() {
 	// App
 	model := ui.NewApp(tunnelManager)
 	p := tea.NewProgram(model)
-	tunnelManager.SetEmitter(func() {
-		p.Send(ssh.TunnelStateChangedMsg{})
+	tunnelManager.SetEmitter(func(msg any) {
+		p.Send(msg)
 	})
 
 	if _, err := p.Run(); err != nil {

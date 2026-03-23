@@ -70,13 +70,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tl := tunnels.New(title, msg.HostConfig.Tunnels, a.TunnelManager)
 		tl.SetSize(a.width, a.height)
 		a.activePage = tl
-		return a, nil
+		return a, initComponent(tl)
 	case base.OpenTunnelsOpenPageMsg:
 		tunnelsOpen := a.TunnelManager.OpenTunnels(ssh.GetHosts())
 		tl := tunnels.New("Opens Tunnels", tunnelsOpen, a.TunnelManager)
 		tl.SetSize(a.width, a.height)
 		a.activePage = tl
-		return a, nil
+		return a, initComponent(tl)
 	case base.OpenInfoPageMsg:
 		ip := info.New(msg.HostConfig)
 		ip.SetSize(a.width, a.height)
@@ -89,14 +89,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case base.OpenModalMsg:
 		slog.Debug("opening modal")
 		a.modal = msg.Dialog
-		// Si el modal tiene Init(), ejecutarlo ahora que ya está registrado.
-		// Esto garantiza que el primer tick del spinner llega después de que
-		// a.modal != nil, evitando la carrera que mata la cadena de ticks.
-		type initable interface{ Init() tea.Cmd }
-		if init, ok := msg.Dialog.(initable); ok {
-			return a, init.Init()
-		}
-		return a, nil
+		return a, initComponent(msg.Dialog)
 	case base.CloseModalMsg:
 		slog.Debug("closing modal")
 		a.modal = nil
@@ -115,7 +108,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
-// View delega el renderizado a la pantalla activa y superpone modales.
+func initComponent(component base.Component) tea.Cmd {
+	type initable interface{ Init() tea.Cmd }
+	if init, ok := component.(initable); ok {
+		return init.Init()
+	}
+	return nil
+}
 func (a App) View() tea.View {
 	content := a.activePage.View()
 

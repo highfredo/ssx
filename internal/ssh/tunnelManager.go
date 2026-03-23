@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
-
-	"github.com/highfredo/ssx/internal/atomicfile"
-	"github.com/highfredo/ssx/internal/paths"
 )
 
 type TunnelStateChangedMsg struct {
+	ID           string
+	TunnelStatus TunnelStatus
+	PortStatus   PortStatus
 }
 
 type TunnelState int
@@ -31,32 +30,38 @@ type TunnelStatus struct {
 }
 
 type TunnelManager struct {
-	mapNotifier *MapNotifier
+	store *tunnelStatusStore
 }
 
 func NewTunnelManager() *TunnelManager {
 	tm := &TunnelManager{
-		mapNotifier: NewMapNotifier(),
+		store: newTunnelStatusStore(),
 	}
-	tm.loadState()
+	tm.store.load()
 	return tm
 }
 
-func (m *TunnelManager) SetEmitter(send func()) {
-	m.mapNotifier.onChange = func() {
-		m.saveState()
-		send()
+func (m *TunnelManager) SetEmitter(send func(any)) {
+	m.store.onChange = func(id string, e tunnelEntry) {
+		send(TunnelStateChangedMsg{
+			ID:           id,
+			TunnelStatus: e.tunnelStatus,
+			PortStatus:   e.portStatus,
+		})
 	}
 }
 
 func (m *TunnelManager) Open(tunnel Tunnel) {
-	id := tunnelID(tunnel)
+	id := TunnelID(tunnel)
 
-	m.mapNotifier.Set(id, -1)
+	// Mark as opening — clears any previous error.
+	m.store.SetPID(id, -1)
+
+	h := GetHost(tunnel.Host)
 
 	// Build Args
 	args := []string{
-		"-v",                             // necesario para detectar cuándo el forwarding está listo
+		"-v",                             // required to detect when forwarding is ready
 		"-N",                             // No remote command — stay alive for port forwarding only.
 		"-o", "ExitOnForwardFailure=yes", // Die immediately if forwarding fails.
 		"-F", "/dev/null", // Ignore host-level forwarding directives.
@@ -65,6 +70,13 @@ func (m *TunnelManager) Open(tunnel Tunnel) {
 		"-o", "ControlMaster=no",
 		"-o", "ServerAliveInterval=30", // Detect broken connections.
 		"-o", "ServerAliveCountMax=3",
+		"-o", "StrictHostKeyChecking=accept-new", // never prompt TTY for new keys
+	}
+
+	// Tunnels run unattended without a TTY. If no password is configured,
+	// SSH must never hang waiting for interactive input — fail fast instead.
+	if h.Password == "" && h.PasswordCommand == "" {
+		args = append(args, "-o", "BatchMode=yes")
 	}
 	switch tunnel.Type {
 	case TunnelTypeLocal:
@@ -75,25 +87,23 @@ func (m *TunnelManager) Open(tunnel Tunnel) {
 		args = append(args, "-D", tunnel.LocalPort)
 	}
 
-	// PrepareCmd ssh command
-	h := GetHost(tunnel.Host)
 	slog.Info("Opening", "tunnel", tunnel)
 	cmd := PrepareCmd(h, args...)
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		slog.Error("Error getting stderr pipe", "err", err)
-		m.mapNotifier.Unset(id)
+		m.store.SetClosed(id, err)
 		return
 	}
 
 	if err := cmd.Start(); err != nil {
 		slog.Error("Error starting tunnel", "err", err)
-		m.mapNotifier.Unset(id)
+		m.store.SetClosed(id, err)
 		return
 	}
 
-	// Lee stderr y detecta cuándo el forwarding está activo (event-driven, sin polling)
+	// Read stderr to detect when forwarding is established (event-driven, no polling).
 	go func() {
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
@@ -102,17 +112,24 @@ func (m *TunnelManager) Open(tunnel Tunnel) {
 			if isForwardingReady(tunnel.Type, line) {
 				slog.Info("tunnel forwarding ready", "id", id, "pid", cmd.Process.Pid)
 				cmd.CleanFn()
-				m.mapNotifier.Set(id, cmd.Process.Pid)
+				m.store.SetPID(id, cmd.Process.Pid)
 			}
 		}
 	}()
 
-	// Espera a que el proceso termine
+	// Wait for the process to exit and update state accordingly.
 	go func() {
-		if err := cmd.Wait(); err != nil {
-			slog.Error("tunnel exited", "id", id, "error", err)
+		err := cmd.Wait()
+		if err != nil {
+			if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() < 0 {
+				// Exit code < 0 means the process was killed by a signal
+				// (e.g. from Close()). Expected — not a real error.
+				err = nil
+			} else {
+				slog.Error("tunnel exited unexpectedly", "id", id, "error", err)
+			}
 		}
-		m.mapNotifier.Unset(id)
+		m.store.SetClosed(id, err)
 	}()
 }
 
@@ -131,30 +148,26 @@ func (m *TunnelManager) OpenTunnels(hostconfigs []*HostConfig) []Tunnel {
 }
 
 func (m *TunnelManager) Close(tunnel Tunnel) error {
-	id := tunnelID(tunnel)
+	id := TunnelID(tunnel)
 	slog.Info("closing tunnel", "id", id)
 	err := KillPortOwner(tunnel.LocalPort)
-	m.mapNotifier.Unset(id)
+	m.store.SetClosed(id, nil)
 	return err
 }
 
 func (m *TunnelManager) Status(tunnel Tunnel) (TunnelStatus, PortStatus) {
-	id := tunnelID(tunnel)
-	tunnelPid, exists := m.mapNotifier.Get(id)
-	portStatus, _ := GetPortStatus(tunnel.LocalPort)
+	entry := m.store.Get(TunnelID(tunnel))
+	return entry.tunnelStatus, entry.portStatus
+}
 
-	tunnelStatus := TunnelStatus{PID: tunnelPid}
-	switch {
-	case !exists:
-		tunnelStatus.State = TunnelClosed
-	case tunnelPid < 1:
-		tunnelStatus.State = TunnelOpenning
-	default:
-		tunnelStatus.State = TunnelOpened
+func (m *TunnelManager) RefreshStatus(tunnel Tunnel) {
+	id := TunnelID(tunnel)
+	ps, err := GetPortStatus(tunnel.LocalPort)
+	if err != nil {
+		slog.Warn("RefreshStatus: cannot get port status", "port", tunnel.LocalPort, "err", err)
+		return
 	}
-
-	slog.Info("Tunnel status", "tunnelStatus", tunnelStatus, "portStatus", portStatus)
-	return tunnelStatus, portStatus
+	m.store.SetPortStatus(id, ps)
 }
 
 /*
@@ -165,8 +178,8 @@ func (m *TunnelManager) Status(tunnel Tunnel) (TunnelStatus, PortStatus) {
 **************
 */
 
-// isForwardingReady detecta la línea de stderr que confirma que SSH
-// ya está escuchando en el puerto local.
+// isForwardingReady detects the stderr line that confirms SSH is listening
+// on the local port.
 func isForwardingReady(tunnelType TunnelType, line string) bool {
 	switch tunnelType {
 	case TunnelTypeLocal, TunnelTypeDynamic:
@@ -177,63 +190,6 @@ func isForwardingReady(tunnelType TunnelType, line string) bool {
 	return false
 }
 
-// statePath devuelve la ruta del fichero de estado siguiendo XDG Base Dir Spec.
-// Por defecto: ~/.local/share/ssx/tunnels.json
-func statePath() string {
-	return filepath.Join(paths.DataDir(), "tunnels.json")
-}
-
-// saveState persiste en disco los túneles confirmados (PID > 0).
-// Se llama automáticamente en cada cambio del mapa.
-func (m *TunnelManager) saveState() {
-	snapshot := m.mapNotifier.Snapshot()
-	state := make(map[string]int, len(snapshot))
-	for k, v := range snapshot {
-		if v > 0 { // solo túneles confirmados, no los que están en "opening"
-			state[k] = v
-		}
-	}
-	if err := atomicfile.WriteJSON(statePath(), state); err != nil {
-		slog.Error("failed to save tunnel state", "err", err)
-	}
-}
-
-// loadState carga el estado persistido y restaura solo los túneles cuyo
-// proceso sigue vivo y sigue siendo dueño del puerto local.
-func (m *TunnelManager) loadState() {
-	var state map[string]int
-	if err := atomicfile.ReadJSON(statePath(), &state); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			slog.Error("failed to load tunnel state", "err", err)
-		}
-		return
-	}
-
-	for id, pid := range state {
-		// tunnelID tiene formato: "host|type|localPort|remoteHost|remotePort"
-		parts := strings.SplitN(id, "|", 5)
-		if len(parts) < 3 {
-			slog.Warn("ignoring malformed tunnel id in state", "id", id)
-			continue
-		}
-		localPort := parts[2]
-
-		portStatus, err := GetPortStatus(localPort)
-		if err != nil {
-			slog.Warn("could not check port on restore", "port", localPort, "err", err)
-			continue
-		}
-
-		// Solo restaurar si el mismo proceso sigue escuchando en el puerto
-		if portStatus.State == PortOpened && portStatus.PID == pid {
-			slog.Info("restoring tunnel from persisted state", "id", id, "pid", pid)
-			m.mapNotifier.Set(id, pid)
-		} else {
-			slog.Info("discarding stale tunnel state", "id", id, "saved_pid", pid, "port_pid", portStatus.PID)
-		}
-	}
-}
-
 /*
 **************
 
@@ -241,9 +197,10 @@ func (m *TunnelManager) loadState() {
 
 **************
 */
-// ID returns a stable, unique key for this tunnel scoped to a host alias.
-// Used as map keys in the tunnel manager.
-func tunnelID(t Tunnel) string {
+
+// TunnelID returns the stable unique key for a tunnel, scoped to its host alias.
+// Exported so callers can match TunnelStateChangedMsg.ID against known tunnels.
+func TunnelID(t Tunnel) string {
 	return fmt.Sprintf("%s|%d|%s|%s|%s",
 		t.Host, t.Type, t.LocalPort, t.RemoteHost, t.RemotePort)
 }
