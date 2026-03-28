@@ -19,3 +19,10 @@ type OpenModalMsg struct {
 }
 
 type CloseModalMsg struct{}
+
+// AppUpdatedMsg is sent when ssx has successfully updated itself in the background.
+// NewVersion holds the version string that was installed.
+type AppUpdatedMsg struct {
+	NewVersion string
+}
+

@@ -4,16 +4,33 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/creativeprojects/go-selfupdate"
 	"github.com/highfredo/ssx/internal/appconfig"
+	"github.com/highfredo/ssx/internal/paths"
 )
 
 const (
 	githubRepo   = "highfredo/ssx"
 	checksumFile = "checksums.txt"
+	newVerFile   = "new_ver.txt"
 )
+
+func pendingUpdateFile() string {
+	return filepath.Join(paths.CacheDir(), newVerFile)
+}
+
+func ConsumePendingUpdate() string {
+	data, err := os.ReadFile(pendingUpdateFile())
+	if err != nil {
+		return ""
+	}
+	_ = os.Remove(pendingUpdateFile())
+	return strings.TrimSpace(string(data))
+}
 
 func CheckAndUpdate(currentVersion string) (bool, error) {
 	if _, err := semver.NewVersion(currentVersion); err != nil {
@@ -55,9 +72,16 @@ func CheckAndUpdate(currentVersion string) (bool, error) {
 	}
 
 	if err := appconfig.WriteSampleConfig(); err != nil {
-		slog.Warn("no se pudo escribir sample.config.yaml", "err", err)
+		slog.Warn("could not write sample.config.yaml", "err", err)
 	}
 
-	slog.Info("ssx updated", "version", latest.Version())
+	newVersion := latest.Version()
+	slog.Info("ssx updated", "version", newVersion)
+
+	// Persist the new version so the next launch can show a notification.
+	if err := os.WriteFile(pendingUpdateFile(), []byte(newVersion), 0o600); err != nil {
+		slog.Warn("could not write pending update marker", "err", err)
+	}
+
 	return true, nil
 }

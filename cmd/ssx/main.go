@@ -19,6 +19,7 @@ import (
 	"github.com/highfredo/ssx/internal/paths"
 	"github.com/highfredo/ssx/internal/ssh"
 	"github.com/highfredo/ssx/internal/ui"
+	"github.com/highfredo/ssx/internal/ui/base"
 	"github.com/highfredo/ssx/internal/updater"
 )
 
@@ -41,9 +42,7 @@ func main() {
 	setupLogger()
 	slog.Info("ssx starting", "version", version)
 
-	go func() {
-		updater.CheckAndUpdate(version)
-	}()
+	go updater.CheckAndUpdate(version)
 
 	// Servicios
 	tunnelManager := ssh.NewTunnelManager()
@@ -54,6 +53,11 @@ func main() {
 	tunnelManager.SetEmitter(func(msg any) {
 		p.Send(msg)
 	})
+
+	// Notify the user if a previous background update installed a new version.
+	if v := updater.ConsumePendingUpdate(); v != "" {
+		go p.Send(base.AppUpdatedMsg{NewVersion: v})
+	}
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "TUI error: %v\n", err)

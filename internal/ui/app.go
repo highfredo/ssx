@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"log/slog"
 
 	"charm.land/bubbles/v2/key"
@@ -10,6 +11,7 @@ import (
 	"github.com/highfredo/ssx/internal/ui/base"
 	"github.com/highfredo/ssx/internal/ui/hosts"
 	"github.com/highfredo/ssx/internal/ui/info"
+	"github.com/highfredo/ssx/internal/ui/modal"
 	"github.com/highfredo/ssx/internal/ui/tunnels"
 )
 
@@ -86,6 +88,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.activePage = a.rootPage
 		a.activePage.SetSize(a.width, a.height)
 		return a, nil
+	case base.AppUpdatedMsg:
+		title := fmt.Sprintf("✦ ssx updated to %s", msg.NewVersion)
+		return a, modal.OpenAlert(title, "Enjoy!", false)
 	case base.OpenModalMsg:
 		slog.Debug("opening modal")
 		a.modal = msg.Dialog
