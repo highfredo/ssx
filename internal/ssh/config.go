@@ -91,6 +91,13 @@ func GetHost(name string) *HostConfig {
 // collectHosts walks cfg.Hosts and descends into any Include nodes, using
 // rootCfg.Get() for all directive lookups (it already traverses includes).
 func collectHosts(cfg *gossh.Config, rootCfg *gossh.Config, seen map[string]bool) []*HostConfig {
+	// Wildcard nodes from both the current file and the root config act as
+	// fallback values for magic comments (first-match semantics, same as SSH).
+	fallbackNodes := wildcardNodes(cfg)
+	if rootCfg != cfg {
+		fallbackNodes = append(fallbackNodes, wildcardNodes(rootCfg)...)
+	}
+
 	var hosts []*HostConfig
 	for _, host := range cfg.Hosts {
 		// Recurse into Include nodes before processing this host's own patterns,
@@ -120,7 +127,11 @@ func collectHosts(cfg *gossh.Config, rootCfg *gossh.Config, seen map[string]bool
 			}
 			seen[alias] = true
 
-			if strings.EqualFold(extractComment(host.Nodes, ">hidden:"), "true") {
+			// Combine the specific host nodes with wildcard fallback nodes so
+			// that magic comments are inherited (first-match: specific wins).
+			nodes := append(host.Nodes, fallbackNodes...)
+
+			if strings.EqualFold(extractComment(nodes, ">hidden:"), "true") {
 				continue
 			}
 
@@ -158,17 +169,33 @@ func collectHosts(cfg *gossh.Config, rootCfg *gossh.Config, seen map[string]bool
 				Hostname:        hostname,
 				User:            user,
 				Port:            port,
-				Password:        extractPassword(host.Nodes),
-				PasswordCommand: extractPasswordCommand(host.Nodes),
+				Password:        extractPassword(nodes),
+				PasswordCommand: extractPasswordCommand(nodes),
 				IdentityFiles:   filterSSHNone(identityFiles),
 				ProxyCommand:    normalizeSSHValue(proxyCommand),
 				ProxyJump:       normalizeSSHValue(proxyJump),
-				Tags:            extractTags(host.Nodes),
+				Tags:            extractTags(nodes),
 				Tunnels:         tunnels,
 			})
 		}
 	}
 	return hosts
+}
+
+// wildcardNodes collects all nodes that belong to wildcard Host patterns
+// (patterns containing * or ?) in cfg. These are used as fallback values
+// for magic comments, mirroring how SSH config inherits directives from Host *.
+func wildcardNodes(cfg *gossh.Config) []gossh.Node {
+	var nodes []gossh.Node
+	for _, host := range cfg.Hosts {
+		for _, p := range host.Patterns {
+			if strings.ContainsAny(p.String(), "*?") {
+				nodes = append(nodes, host.Nodes...)
+				break
+			}
+		}
+	}
+	return nodes
 }
 
 func normalizeSSHValue(v string) string {
@@ -351,14 +378,19 @@ func extractComment(nodes []gossh.Node, prefix string) string {
 	return ""
 }
 
-// extractTags scans SSH config nodes for a standalone comment of the form
+// extractTags scans all SSH config nodes for #>tags: comments and merges the
+// results. This allows wildcard Host blocks (e.g. Host *) to contribute tags
+// that are inherited by specific hosts. When the same tag name appears more
+// than once (e.g. the host overrides the wildcard), the first occurrence wins
+// (first-match semantics), preserving the host-specific color if any.
 //
-//	#>tags: name[:color], name[:color], ...
-//
-// Each tag can optionally carry a color (hex or ANSI name).
-// If a tag has no color in the SSH config, tagColors (from the YAML app config)
-// is used as fallback. SSH config colors always take priority.
+// Each tag entry has the form: name[:color], name[:color], ...
+// If a tag has no inline color, the YAML app config tagColors map is used as
+// fallback.
 func extractTags(nodes []gossh.Node) []Tag {
+	seen := make(map[string]bool)
+	var tags []Tag
+
 	for _, node := range nodes {
 		var comment string
 		switch n := node.(type) {
@@ -371,31 +403,25 @@ func extractTags(nodes []gossh.Node) []Tag {
 		if !ok {
 			continue
 		}
-		tagsStr := strings.TrimSpace(after)
-		if tagsStr == "" {
-			return nil
-		}
-		var tags []Tag
-		for _, raw := range strings.Split(tagsStr, ",") {
+		for _, raw := range strings.Split(strings.TrimSpace(after), ",") {
 			raw = strings.TrimSpace(raw)
 			if raw == "" {
 				continue
 			}
 			name, color, _ := strings.Cut(raw, ":")
 			name = strings.TrimSpace(name)
-			color = strings.TrimSpace(color)
-			if name == "" {
+			if name == "" || seen[name] {
 				continue
 			}
-			// SSH config color takes priority; YAML app config is the fallback.
+			seen[name] = true
+			color = strings.TrimSpace(color)
 			if color == "" {
 				color = appconfig.Get().Tags[name]
 			}
 			tags = append(tags, Tag{Name: name, Color: color})
 		}
-		return tags
 	}
-	return nil
+	return tags
 }
 
 // splitHostPort handles both IPv6 ([addr]:port) and regular (host:port) formats.

@@ -147,7 +147,7 @@ func (m *HostPage) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 		return m, tea.ExecProcess(sshCmd.Cmd, func(err error) tea.Msg {
 			sshCmd.CleanFn()
 			if err != nil {
-				slog.Error("error abriendo shell", "error", err)
+				slog.Error("error opening shell", "error", err)
 				return tea.Quit()
 			}
 

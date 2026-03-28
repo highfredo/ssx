@@ -29,13 +29,17 @@ var (
 			MarginTop(1)
 )
 
-// sectionDef agrupa claves de ssh -G bajo un título temático.
+// sectionDef groups ssh -G keys under a themed title.
 type sectionDef struct {
 	title string
-	keys  []string // claves en minúsculas tal como las imprime ssh -G
+	keys  []string // keys in lowercase as printed by ssh -G
 }
 
 var sshSections = []sectionDef{
+	{
+		title: "🪄 ssx",
+		keys:  []string{"tags", "password", "passwordCommand"},
+	},
 	{
 		title: "🔌 Connection",
 		keys: []string{
@@ -94,13 +98,13 @@ var sshSections = []sectionDef{
 	},
 }
 
-// parsedLine almacena una línea de ssh -G ya descompuesta.
+// parsedLine holds a single ssh -G line split into key and value.
 type parsedLine struct {
 	key   string
 	value string
 }
 
-// InfoPage muestra la configuración efectiva de SSH para un host (ssh -G).
+// InfoPage shows the effective SSH configuration for a host (ssh -G).
 type InfoPage struct {
 	host     *ssh.HostConfig
 	allLines []parsedLine
@@ -124,7 +128,7 @@ func (p *InfoPage) FullHelp() [][]key.Binding {
 }
 
 func New(host *ssh.HostConfig) *InfoPage {
-	lines := parseSSHG(host)
+	lines := append(buildMagicLines(host), parseSSHG(host)...)
 
 	vp := viewport.New()
 	vp.SoftWrap = true
@@ -209,17 +213,17 @@ func (p *InfoPage) View() string {
 	)
 }
 
-// refreshViewport recalcula el contenido del viewport aplicando el filtro actual.
+// refreshViewport rebuilds the viewport content applying the current filter.
 func (p *InfoPage) refreshViewport() {
 	q := strings.ToLower(p.search.Value())
 
-	// Índice clave→líneas para agrupar por sección.
+	// Key → lines index for grouping by section.
 	byKey := make(map[string][]parsedLine, len(p.allLines))
 	for _, l := range p.allLines {
 		byKey[l.key] = append(byKey[l.key], l)
 	}
 
-	// Claves ya asignadas a una sección para calcular "Other" después.
+	// Keys already assigned to a section, used to compute "Other" afterwards.
 	assigned := make(map[string]bool)
 
 	var sb strings.Builder
@@ -257,7 +261,7 @@ func (p *InfoPage) refreshViewport() {
 		}
 	}
 
-	// Sección "Other" con las claves no asignadas a ninguna sección.
+	// "Other" section: keys not assigned to any named section.
 	var otherLines []parsedLine
 	for _, l := range p.allLines {
 		if !assigned[l.key] && matchesFilter(l) {
@@ -275,16 +279,16 @@ func (p *InfoPage) refreshViewport() {
 	p.viewport.GotoTop()
 }
 
-// highlightMatch resalta todas las ocurrencias de q en s (insensible a mayúsculas).
+// highlightMatch highlights all occurrences of q in s (case-insensitive).
 func highlightMatch(s, q string) string {
 	return highlightMatchStyled(s, q, lipgloss.NewStyle())
 }
 
-// highlightMatchStyled busca q sobre el texto crudo s y aplica:
-//   - base a las partes que NO coinciden
-//   - matchStyle a las partes que SÍ coinciden
+// highlightMatchStyled searches for q in the raw text s and applies:
+//   - base style to non-matching parts
+//   - matchStyle to matching parts
 //
-// Buscar sobre s crudo (sin ANSI) garantiza que los índices son correctos.
+// Searching on the raw string (no ANSI) ensures correct byte indices.
 func highlightMatchStyled(s, q string, base lipgloss.Style) string {
 	if q == "" {
 		return base.Render(s)
@@ -307,7 +311,7 @@ func highlightMatchStyled(s, q string, base lipgloss.Style) string {
 	return out.String()
 }
 
-// parseSSHG ejecuta «ssh -G <name>» y devuelve las líneas descompuestas.
+// parseSSHG runs «ssh -G <name>» and returns the parsed lines.
 func parseSSHG(host *ssh.HostConfig) []parsedLine {
 	out, err := exec.Command("ssh", "-G", host.Name).Output()
 	if err != nil {
@@ -322,5 +326,33 @@ func parseSSHG(host *ssh.HostConfig) []parsedLine {
 			lines = append(lines, parsedLine{key: raw})
 		}
 	}
+	return lines
+}
+
+// buildMagicLines converts HostConfig magic-comment fields into parsedLines
+// so they appear in the "🪄 ssx" section and are searchable.
+func buildMagicLines(host *ssh.HostConfig) []parsedLine {
+	var lines []parsedLine
+
+	if len(host.Tags) > 0 {
+		var parts []string
+		for _, t := range host.Tags {
+			if t.Color != "" {
+				parts = append(parts, t.Name+":"+t.Color)
+			} else {
+				parts = append(parts, t.Name)
+			}
+		}
+		lines = append(lines, parsedLine{key: "tags", value: strings.Join(parts, ", ")})
+	}
+
+	if host.Password != "" {
+		lines = append(lines, parsedLine{key: "password", value: "***"})
+	}
+
+	if host.PasswordCommand != "" {
+		lines = append(lines, parsedLine{key: "passwordCommand", value: host.PasswordCommand})
+	}
+
 	return lines
 }
