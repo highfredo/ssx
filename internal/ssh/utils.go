@@ -40,8 +40,10 @@ func PrepareCmdWithCommand(config *HostConfig, args []string, command []string) 
 
 	if config.Password != "" {
 		cmd.CleanFn, _ = ConfigurePassword(cmd.Cmd, config.Password)
+		cmd.Args = append(cmd.Args, "-o", "NumberOfPasswordPrompts=1")
 	} else if config.PasswordCommand != "" {
 		cmd.CleanFn, _ = ConfigurePasswordCommand(cmd.Cmd, config.PasswordCommand)
+		cmd.Args = append(cmd.Args, "-o", "NumberOfPasswordPrompts=1")
 	}
 
 	cmd.Args = append(cmd.Args, config.Hostname)
