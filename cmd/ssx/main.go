@@ -67,9 +67,9 @@ func main() {
 }
 
 func setupLogger() {
-	_ = os.MkdirAll(paths.CacheDir(), 0o655)
+	_ = os.MkdirAll(paths.CacheDir(), 0o755)
 	logPath := filepath.Join(paths.CacheDir(), "ssx.log")
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o664)
 	if err != nil {
 		return
 	}
