@@ -1,3 +1,4 @@
+// Package updater performs background self-updates from GitHub releases.
 package updater
 
 import (
@@ -23,6 +24,8 @@ func pendingUpdateFile() string {
 	return filepath.Join(paths.CacheDir(), newVerFile)
 }
 
+// ConsumePendingUpdate returns the version installed by a previous run, if
+// any, and clears the marker so it is reported only once.
 func ConsumePendingUpdate() string {
 	data, err := os.ReadFile(pendingUpdateFile())
 	if err != nil {
@@ -32,9 +35,11 @@ func ConsumePendingUpdate() string {
 	return strings.TrimSpace(string(data))
 }
 
+// CheckAndUpdate replaces the running binary with the latest release when
+// one newer than currentVersion exists. It reports whether an update happened.
 func CheckAndUpdate(currentVersion string) (bool, error) {
-	if _, err := semver.NewVersion(currentVersion); err != nil {
-		slog.Debug("update check skipped: invalid version", "version", currentVersion)
+	if _, err := semver.StrictNewVersion(currentVersion); err != nil {
+		slog.Debug("update check skipped, not a release version", "version", currentVersion)
 		return false, nil
 	}
 

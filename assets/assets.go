@@ -1,9 +1,9 @@
-// Package assets expone los ficheros estáticos embebidos en el binario.
+// Package assets exposes the static files embedded in the binary.
 package assets
 
 import _ "embed"
 
-// DefaultConfig contiene el contenido del fichero de configuración de ejemplo.
+// DefaultConfig holds the contents of the sample configuration file.
 //
 //go:embed default_config.yaml
 var DefaultConfig []byte

@@ -1,5 +1,5 @@
-// Package appconfig gestiona la configuración de la aplicación ssx,
-// leyendo de ~/.config/ssx/config.yaml con soporte XDG.
+// Package appconfig manages the ssx application configuration,
+// read from ~/.config/ssx/config.yaml with XDG support.
 package appconfig
 
 import (
@@ -11,36 +11,36 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config contiene la configuración de ssx leída de ~/.config/ssx/config.yaml.
+// Config holds the ssx configuration read from ~/.config/ssx/config.yaml.
 type Config struct {
-	// LogLevel establece el nivel de logging: "debug", "info", "warn" o "error".
-	// Si está vacío se usa "info".
+	// LogLevel sets the logging level: "debug", "info", "warn" or "error".
+	// Empty defaults to "info".
 	LogLevel string `yaml:"log_level"`
-	// Theme personaliza la paleta de colores de la UI.
+	// Theme customizes the UI color palette.
 	Theme ThemeConfig `yaml:"theme"`
-	// Tags define colores por defecto para cada etiqueta.
+	// Tags defines default colors for each tag.
 	Tags map[string]string `yaml:"tags"`
-	// FTP configura el cliente SFTP preferido.
+	// FTP configures the preferred SFTP client.
 	FTP FTPClientConfig `yaml:"ftp"`
-	// Keybindings permite personalizar los atajos de teclado.
+	// Keybindings allows customizing keyboard shortcuts.
 	Keybindings KeybindingsConfig `yaml:"keybindings"`
 }
 
-// KeybindingsConfig agrupa todos los atajos de teclado personalizables.
-// Cada campo es una cadena de teclas separadas por espacio (p.ej. "ctrl+t tab").
-// Un campo vacío usa el valor por defecto.
+// KeybindingsConfig groups all customizable keyboard shortcuts.
+// Each field is a space-separated list of keys (e.g. "ctrl+t tab").
+// An empty field uses the default value.
 type KeybindingsConfig struct {
-	// Quit sale de la aplicación. Default: "ctrl+c".
+	// Quit exits the application. Default: "ctrl+c".
 	Quit string `yaml:"quit"`
-	// Hosts agrupa los atajos de la pantalla principal de hosts.
+	// Hosts groups the shortcuts of the main hosts screen.
 	Hosts HostsKeybindings `yaml:"hosts"`
-	// Tunnels agrupa los atajos de la pantalla de túneles.
+	// Tunnels groups the shortcuts of the tunnels screen.
 	Tunnels TunnelsKeybindings `yaml:"tunnels"`
-	// Navigation agrupa los atajos de navegación y scroll.
+	// Navigation groups the navigation and scroll shortcuts.
 	Navigation NavigationKeybindings `yaml:"navigation"`
 }
 
-// HostsKeybindings contiene los atajos de la pantalla de hosts.
+// HostsKeybindings holds the shortcuts of the hosts screen.
 type HostsKeybindings struct {
 	Connect      string `yaml:"connect"`       // Default: "enter"
 	CopyKey      string `yaml:"copy_key"`      // Default: "ctrl+a"
@@ -48,20 +48,20 @@ type HostsKeybindings struct {
 	OpenTunnels  string `yaml:"open_tunnels"`  // Default: "ctrl+o"
 	FTP          string `yaml:"ftp"`           // Default: "ctrl+x"
 	Info         string `yaml:"info"`          // Default: "ctrl+g"
-	OpenSSHDir   string `yaml:"open_ssh_dir"`  // Default: "ctrl+alt+p"
+	EditConfig   string `yaml:"edit_config"`   // Default: "ctrl+e"
 	OpenConfig   string `yaml:"open_config"`   // Default: "ctrl+alt+s"
 	QuickConnect string `yaml:"quick_connect"` // Default: "ctrl+enter ctrl+j"
 }
 
-// TunnelsKeybindings contiene los atajos de la pantalla de túneles.
+// TunnelsKeybindings holds the shortcuts of the tunnels screen.
 type TunnelsKeybindings struct {
 	Toggle  string `yaml:"toggle"`  // Default: "enter"
-	Browser string `yaml:"browser"` // Default: "ctrl+x"
+	Browser string `yaml:"browser"` // Default: "ctrl+b"
 	Back    string `yaml:"back"`    // Default: "esc tab"
 }
 
-// NavigationKeybindings contiene los atajos de navegación compartidos por
-// todas las listas y vistas con scroll (hosts, tunnels, info).
+// NavigationKeybindings holds the navigation shortcuts shared by
+// all scrollable lists and views (hosts, tunnels, info).
 type NavigationKeybindings struct {
 	CursorUp     string `yaml:"cursor_up"`      // Default: "up"
 	CursorDown   string `yaml:"cursor_down"`    // Default: "down"
@@ -69,15 +69,15 @@ type NavigationKeybindings struct {
 	NextPage     string `yaml:"next_page"`      // Default: "pgdown"
 	GoToStart    string `yaml:"go_to_start"`    // Default: "home"
 	GoToEnd      string `yaml:"go_to_end"`      // Default: "end"
-	ShowFullHelp string `yaml:"show_full_help"` // Default: "f1"
+	ShowFullHelp string `yaml:"show_full_help"` // Default: "f1 ?"
 	HalfPageUp   string `yaml:"half_page_up"`   // Default: "ctrl+u"
 	HalfPageDown string `yaml:"half_page_down"` // Default: "ctrl+d"
 	Back         string `yaml:"back"`           // Default: "tab esc"
 }
 
-// SlogLevel devuelve el slog.Level correspondiente al campo LogLevel.
-// Valores válidos: "debug", "info", "warn", "error" (insensible a mayúsculas).
-// Cualquier otro valor se trata como "info".
+// SlogLevel returns the slog.Level corresponding to the LogLevel field.
+// Valid values: "debug", "info", "warn", "error" (case-insensitive).
+// Any other value is treated as "info".
 func (c *Config) SlogLevel() slog.Level {
 	switch c.LogLevel {
 	case "debug":
@@ -91,58 +91,53 @@ func (c *Config) SlogLevel() slog.Level {
 	}
 }
 
-// ThemeConfig personaliza la paleta de colores de la interfaz de ssx.
-// Cada campo acepta un color en formato hex (#RRGGBB), nombre CSS básico
-// o número ANSI. Los campos vacíos mantienen el color por defecto.
+// ThemeConfig customizes the color palette of the ssx interface.
+// Each field accepts a hex color (#RRGGBB), a basic CSS color name
+// or an ANSI number. Empty fields keep the default color.
 type ThemeConfig struct {
-	// Colores principales de la UI
-	Primary    string `yaml:"primary"`    // acento / fondo de títulos    (default #7C3AED)
-	Highlight  string `yaml:"highlight"`  // fila seleccionada (oscuro)    (default #1E1B4B)
-	Success    string `yaml:"success"`    // estado abierto / OK           (default #10B981)
-	Muted      string `yaml:"muted"`      // estado cerrado / ayuda        (default #6B7280)
-	Danger     string `yaml:"danger"`     // errores                       (default #EF4444)
-	Border     string `yaml:"border"`     // bordes de paneles
-	DefaultTag string `yaml:"defaultTag"` //        (default #374151)
+	Primary    string `yaml:"primary"`    // accent / title background        (default #7C3AED)
+	Secondary  string `yaml:"secondary"`  // selected description, section titles, keys (default #C4B5FD)
+	Highlight  string `yaml:"highlight"`  // selected row (dark)               (default #1E1B4B)
+	Text       string `yaml:"text"`       // main text on accent / selected    (default #FAFAFA)
+	Success    string `yaml:"success"`    // open state / OK                   (default #10B981)
+	Warning    string `yaml:"warning"`    // transitional state (opening)      (default #F59E0B)
+	Muted      string `yaml:"muted"`      // closed state / help text          (default #6B7280)
+	Danger     string `yaml:"danger"`     // errors / port in use              (default #EF4444)
+	Border     string `yaml:"border"`     // panel borders / inactive buttons  (default #374151)
+	DefaultTag string `yaml:"defaultTag"` // tag chips without explicit colour (default #312E81)
 }
 
-// FTPClientConfig configura qué cliente FTP/SFTP usar.
+// FTPClientConfig configures which FTP/SFTP client to use.
 type FTPClientConfig struct {
-	// Client es el cliente preferido: "winscp" | "filezilla" | "" (auto-detectar).
+	// Client is the preferred client: "winscp" | "filezilla" | "" (auto-detect).
 	Client string `yaml:"client"`
-	// Path es la ruta personalizada al ejecutable; si está vacío se busca en
-	// las ubicaciones por defecto.
+	// Path is the custom path to the executable; if empty, the default
+	// locations are searched.
 	Path string `yaml:"path"`
 }
 
-// cached es la instancia cargada al inicio del programa.
-var cached = load()
-
-// Get devuelve la configuración cargada al inicio.
-func Get() *Config {
-	return cached
-}
-
-// load lee el fichero de configuración.
-// Si no existe lo crea con contenido por defecto.
-// Ante cualquier error devuelve una config vacía y lo loguea.
-func load() *Config {
+// Load reads the configuration file. If it does not exist, it is created
+// with default content. Loading is best-effort: on any error a warning is
+// logged and an empty config (all defaults) is returned, so callers never
+// need to handle a missing or broken config file.
+func Load() *Config {
 	empty := &Config{Tags: map[string]string{}}
 
 	data, err := os.ReadFile(paths.AppConfigFile())
 	if os.IsNotExist(err) {
 		if err := createDefault(); err != nil {
-			slog.Warn("no se pudo crear la configuración por defecto de ssx", "err", err)
+			slog.Warn("cannot create default ssx config", "err", err)
 		}
 		return empty
 	}
 	if err != nil {
-		slog.Warn("no se pudo leer la configuración de ssx", "err", err)
+		slog.Warn("cannot read ssx config", "err", err)
 		return empty
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		slog.Warn("configuración de ssx inválida", "err", err)
+		slog.Warn("invalid ssx config", "err", err)
 		return empty
 	}
 	if cfg.Tags == nil {
@@ -158,6 +153,8 @@ func createDefault() error {
 	return os.WriteFile(paths.AppConfigFile(), assets.DefaultConfig, 0o644)
 }
 
+// WriteSampleConfig writes the bundled sample config next to the user config
+// so new options are discoverable after an update.
 func WriteSampleConfig() error {
 	if err := os.MkdirAll(paths.AppConfigDir(), 0o755); err != nil {
 		return err

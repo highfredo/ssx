@@ -17,8 +17,15 @@ func resolve(configured, defaultKeys, helpDesc string) key.Binding {
 	return key.NewBinding(key.WithKeys(ks...), key.WithHelp(strings.Join(ks, "/"), helpDesc))
 }
 
+func resolveNoHelp(configured, defaultKeys string) key.Binding {
+	ks := strings.Fields(configured)
+	if len(ks) == 0 {
+		ks = strings.Fields(defaultKeys)
+	}
+	return key.NewBinding(key.WithKeys(ks...))
+}
+
 // AppKeybindings holds all resolved key bindings for the application.
-// Initialized once from appconfig — use Keys() to access.
 type AppKeybindings struct {
 	Quit       key.Binding
 	Hosts      HostsKeys
@@ -34,7 +41,7 @@ type HostsKeys struct {
 	OpenTunnels  key.Binding
 	FTP          key.Binding
 	Info         key.Binding
-	OpenSSHDir   key.Binding
+	EditConfig   key.Binding
 	OpenConfig   key.Binding
 	QuickConnect key.Binding
 }
@@ -43,7 +50,6 @@ type HostsKeys struct {
 type TunnelsKeys struct {
 	Toggle  key.Binding
 	Browser key.Binding
-	//Back    key.Binding
 }
 
 // NavigationKeys holds navigation bindings shared by all lists and scroll views.
@@ -61,15 +67,10 @@ type NavigationKeys struct {
 	Back          key.Binding
 }
 
-// cachedKeys is the application-wide keybindings singleton.
-var cachedKeys = buildKeys(appconfig.Get().Keybindings)
-
-// Keys returns the application-wide resolved key bindings singleton.
-func Keys() *AppKeybindings {
-	return cachedKeys
-}
-
-func buildKeys(cfg appconfig.KeybindingsConfig) *AppKeybindings {
+// NewKeybindings resolves the key bindings from the user configuration,
+// falling back to the defaults for any unset binding. The result is passed
+// explicitly to the pages that need it.
+func NewKeybindings(cfg appconfig.KeybindingsConfig) *AppKeybindings {
 	h := cfg.Hosts
 	t := cfg.Tunnels
 	n := cfg.Navigation
@@ -83,24 +84,23 @@ func buildKeys(cfg appconfig.KeybindingsConfig) *AppKeybindings {
 			OpenTunnels:  resolve(h.OpenTunnels, "ctrl+o", "opened tunnels"),
 			FTP:          resolve(h.FTP, "ctrl+x", "open FTP"),
 			Info:         resolve(h.Info, "ctrl+g", "ssh info"),
-			OpenSSHDir:   resolve(h.OpenSSHDir, "ctrl+alt+p", "open ssh config"),
+			EditConfig:   resolve(h.EditConfig, "ctrl+e", "edit ssh config"),
 			OpenConfig:   resolve(h.OpenConfig, "ctrl+alt+s", "open settings"),
 			QuickConnect: resolve(h.QuickConnect, "ctrl+enter ctrl+j", "quick connect"),
 		},
 		Tunnels: TunnelsKeys{
 			Toggle:  resolve(t.Toggle, "enter", "toggle tunnel"),
-			Browser: resolve(t.Browser, "ctrl+x", "open in browser"),
-			//Back:    resolve(t.Back, "esc tab", "back"),
+			Browser: resolve(t.Browser, "ctrl+b", "open in browser"),
 		},
 		Navigation: NavigationKeys{
-			CursorUp:      resolve(n.CursorUp, "up", "up"),
-			CursorDown:    resolve(n.CursorDown, "down", "down"),
-			PrevPage:      resolve(n.PrevPage, "pgup", "prev page"),
-			NextPage:      resolve(n.NextPage, "pgdown", "next page"),
-			GoToStart:     resolve(n.GoToStart, "home", "go to start"),
-			GoToEnd:       resolve(n.GoToEnd, "end", "go to end"),
-			ShowFullHelp:  resolve(n.ShowFullHelp, "f1", "open help"),
-			CloseFullHelp: resolve(n.ShowFullHelp, "f1", "close help"),
+			CursorUp:      resolveNoHelp(n.CursorUp, "up"),
+			CursorDown:    resolveNoHelp(n.CursorDown, "down"),
+			PrevPage:      resolveNoHelp(n.PrevPage, "pgup"),
+			NextPage:      resolveNoHelp(n.NextPage, "pgdown"),
+			GoToStart:     resolveNoHelp(n.GoToStart, "home"),
+			GoToEnd:       resolveNoHelp(n.GoToEnd, "end"),
+			ShowFullHelp:  resolve(n.ShowFullHelp, "f1 ?", "open help"),
+			CloseFullHelp: resolve(n.ShowFullHelp, "f1 ?", "close help"),
 			HalfPageUp:    resolve(n.HalfPageUp, "ctrl+u", "½ page up"),
 			HalfPageDown:  resolve(n.HalfPageDown, "ctrl+d", "½ page down"),
 			Back:          resolve(n.Back, "tab esc", "back"),

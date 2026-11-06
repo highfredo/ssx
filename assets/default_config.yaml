@@ -12,12 +12,15 @@ log_level: "info"
 # Defaults (purple/indigo palette):
 # theme:
 #   primary:    "#7C3AED"   # accent / title background
+#   secondary:  "#C4B5FD"   # selected description, section titles, config keys
 #   highlight:  "#1E1B4B"   # selected row background (dark)
+#   text:       "#FAFAFA"   # main text on accent / selected rows
 #   success:    "#10B981"   # open state / success messages
+#   warning:    "#F59E0B"   # transitional state (tunnel opening)
 #   muted:      "#6B7280"   # closed state / help text
-#   danger:     "#EF4444"   # errors
-#   border:     "#374151"   # panel borders
-# 	defaultTag: "#312E81"   # default tag color (used when no color is set in ~/.ssh/config)
+#   danger:     "#EF4444"   # errors / port in use
+#   border:     "#374151"   # panel borders / inactive buttons
+#   defaultTag: "#312E81"   # default tag color (used when no color is set in ~/.ssh/config)
 theme: {}
 
 # FTP/SFTP client configuration.
@@ -59,13 +62,13 @@ tags: {}
 #     open_tunnels:  "ctrl+o"             # view all currently open tunnels
 #     ftp:           "ctrl+x"             # launch SFTP client
 #     info:          "ctrl+g"             # show effective SSH config (ssh -G)
-#     open_ssh_dir:  "ctrl+alt+p"         # open ~/.ssh in file manager
+#     edit_config:   "ctrl+e"             # edit SSH config at the host line
 #     open_config:   "ctrl+alt+s"         # open ssx config file
 #     quick_connect: "ctrl+enter ctrl+j"  # connect to typed hostname directly
 #
 #   tunnels:                 # tunnel page
 #     toggle:  "enter"       # open/close the selected tunnel
-#     browser: "ctrl+x"      # open tunnel URL in browser
+#     browser: "ctrl+b"      # open tunnel URL in browser
 #
 #   navigation:              # shared by all lists AND the info scroll view
 #     cursor_up:      "up"       # move cursor / scroll up one line
@@ -74,7 +77,7 @@ tags: {}
 #     next_page:      "pgdown"   # next page / scroll down one page
 #     go_to_start:    "home"     # jump to first item
 #     go_to_end:      "end"      # jump to last item
-#     show_full_help: "f1"       # toggle full help panel (open and close)
+#     show_full_help: "f1 ?"     # toggle full help panel (open and close)
 #     half_page_up:   "ctrl+u"   # scroll up half page (info view)
 #     half_page_down: "ctrl+d"   # scroll down half page (info view)
 #     back:           "tab esc"  # go back / clear filter (info view)

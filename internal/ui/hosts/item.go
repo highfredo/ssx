@@ -7,32 +7,30 @@ import (
 )
 
 type item struct {
-	host           *ssh.HostConfig
-	isQuickConnect bool
+	host *ssh.HostConfig
 }
 
 func (i item) Title() string {
 	return i.host.Title
 }
 
+// Description renders user@hostname:port, omitting empty user and the
+// default port.
 func (i item) Description() string {
-	description := make([]string, 0)
-
+	var sb strings.Builder
 	if i.host.User != "" {
-		description = append(description, i.host.User, "@")
+		sb.WriteString(i.host.User)
+		sb.WriteByte('@')
 	}
-	description = append(description, i.host.Hostname)
-	if i.host.Port != "22" {
-		description = append(description, ":", i.host.Port)
+	sb.WriteString(i.host.Hostname)
+	if i.host.Port != ssh.DefaultPort {
+		sb.WriteByte(':')
+		sb.WriteString(i.host.Port)
 	}
-
-	return strings.Join(description, "")
+	return sb.String()
 }
 
 func (i item) FilterValue() string {
-	if i.isQuickConnect {
-		return quickConnectFilterValue
-	}
 	parts := []string{i.host.Title}
 	for _, t := range i.host.Tags {
 		parts = append(parts, t.Name)
@@ -40,5 +38,3 @@ func (i item) FilterValue() string {
 	parts = append(parts, i.host.Name, i.host.Hostname, i.host.User, i.host.Port)
 	return strings.Join(parts, " ")
 }
-
-const quickConnectFilterValue = "__QUICK_HOST__"

@@ -1,0 +1,51 @@
+[tools]
+go = "1.27"
+
+[env]
+BINARY = "ssx"
+BUILD_DIR = "bin"
+XDG_CACHE_HOME = "/tmp/ssx-mise"
+GOPATH = "/tmp/ssx-go"
+GOMODCACHE = "/tmp/ssx-go/pkg/mod"
+GOCACHE = "/tmp/ssx-go/build"
+
+[tasks.build]
+description = "Compile the binary to bin/ssx"
+run = "go build -o ${BUILD_DIR}/${BINARY} ./cmd/${BINARY}"
+
+[tasks.default]
+description = "Build then run the app"
+depends = ["build"]
+run = "./${BUILD_DIR}/${BINARY}"
+
+[tasks.tidy]
+description = "Update go.mod and go.sum"
+run = "go mod tidy"
+
+[tasks.vet]
+description = "Run go vet across all packages"
+run = "go vet ./..."
+
+[tasks.fmt]
+description = "Format Go source files"
+run = "go fmt ./..."
+
+[tasks.clean]
+description = "Remove compiled artifacts"
+run = "rm -rf ${BUILD_DIR}"
+
+[tasks.snapshot]
+description = "Build a local snapshot with goreleaser"
+run = "goreleaser release --snapshot --clean"
+
+[tasks.release-dry]
+description = "Dry-run a release with goreleaser"
+run = "goreleaser release --skip=publish --clean"
+
+[tasks.release]
+description = "Publish a release"
+run = "goreleaser release --clean"
+
+[tasks.help]
+description = "List available tasks"
+run = "mise task ls"

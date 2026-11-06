@@ -1,121 +1,75 @@
 package modal
 
 import (
-	"log/slog"
+	"strings"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/highfredo/ssx/internal/styles"
 	"github.com/highfredo/ssx/internal/ui/base"
 )
 
-// Password is a modal dialog with a masked text-input field.
+// Password is a modal that asks for a secret. Enter submits, esc cancels.
 type Password struct {
 	title    string
-	host     string
-	value    []rune
-	onResult func(password string, cancelled bool) tea.Cmd
+	message  string
+	input    textinput.Model
+	onSubmit func(password string) tea.Cmd
 }
 
-func OpenPassword(host string, onResult func(password string, cancelled bool) tea.Cmd) tea.Cmd {
-	return func() tea.Msg {
-		return base.OpenModalMsg{
-			Dialog: &Password{
-				title:    "Authentication",
-				host:     host,
-				onResult: onResult,
-			},
-		}
-	}
+// OpenPassword returns a Cmd that opens a Password modal. onSubmit runs
+// after the modal closes with the entered password; cancelling runs nothing.
+func OpenPassword(title, message string, onSubmit func(string) tea.Cmd) tea.Cmd {
+	in := textinput.New()
+	in.EchoMode = textinput.EchoPassword
+	in.Prompt = "› "
+	in.SetWidth(contentWidth - lipgloss.Width(in.Prompt))
+	// The blinking virtual cursor makes the masked value jitter; drop it.
+	in.SetVirtualCursor(false)
+	return base.Emit(base.OpenModalMsg{
+		Dialog: &Password{title: title, message: message, input: in, onSubmit: onSubmit},
+	})
 }
 
-func (m *Password) SetSize(width int, height int) {
-	// TODO
-	slog.Debug("Password modal size set", "width", width, "height", height)
+// Init focuses the input once the modal is registered.
+func (m *Password) Init() tea.Cmd {
+	return m.input.Focus()
 }
 
-// Update handles key events: printable chars are appended, Backspace removes
-// the last char, Enter confirms, Esc cancels.
+// SetSize implements base.Component; the dialog has a fixed width.
+func (m *Password) SetSize(_, _ int) {}
+
+// Update implements base.Component.
 func (m *Password) Update(msg tea.Msg) (base.Component, tea.Cmd) {
-	key, ok := msg.(tea.KeyPressMsg)
-	if !ok {
-		return m, nil
-	}
-
-	switch key.String() {
-	case "enter":
-		return m, m.submit(string(m.value), false)
-	case "esc":
-		return m, m.submit(string(m.value), true)
-	case "backspace", "ctrl+h":
-		if len(m.value) > 0 {
-			m.value = m.value[:len(m.value)-1]
-		}
-	default:
-		// Accept single printable characters only.
-		if s := key.String(); len([]rune(s)) == 1 {
-			r := []rune(s)[0]
-			if r >= 32 && r != 127 {
-				m.value = append(m.value, r)
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch key.String() {
+		case "esc":
+			return m, closeModal
+		case "enter":
+			pw := m.input.Value()
+			if strings.TrimSpace(pw) == "" {
+				return m, nil
 			}
+			return m, tea.Sequence(closeModal, m.onSubmit(pw))
 		}
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
 }
 
-// submit closes the modal and runs onResult.
-func (m *Password) submit(password string, cancelled bool) tea.Cmd {
-	closeCmd := func() tea.Msg { return base.CloseModalMsg{} }
-	return tea.Sequence(closeCmd, m.onResult(password, cancelled))
-}
-
+// View implements base.Component.
 func (m *Password) View() string {
-	const dialogWidth = 52
-
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(styles.ColorPrimary).
-		Padding(0, 1).
-		Width(dialogWidth - 4)
-	title := titleStyle.Render("🔑  " + m.title)
-
-	promptStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E5E7EB")).
-		Width(dialogWidth - 4)
-	prompt := promptStyle.Render("Password for " + m.host + ":")
-
-	masked := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#1F2937")).
-		Padding(0, 1).
-		Width(dialogWidth - 6)
-
-	// Build masked value: show bullets for each typed char + blinking cursor block.
-	bullets := ""
-	for range m.value {
-		bullets += "●"
-	}
-	inputLine := masked.Render(bullets + "▋")
-
-	hint := lipgloss.NewStyle().
-		Foreground(styles.ColorMuted).
-		Width(dialogWidth - 4).
-		Align(lipgloss.Center).
-		Render("enter confirm  •  esc cancel")
-
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.ColorPrimary).
-		Padding(1, 2).
-		Width(dialogWidth).
-		Render(lipgloss.JoinVertical(lipgloss.Left,
-			title,
-			"",
-			prompt,
-			"",
-			inputLine,
-			"",
-			hint,
-		))
+	st := m.input.Styles()
+	st.Focused.Prompt = lipgloss.NewStyle().Foreground(styles.ColorPrimary).Bold(true)
+	m.input.SetStyles(st)
+	rule := lipgloss.NewStyle().Foreground(styles.ColorBorder).Render(strings.Repeat("─", contentWidth))
+	field := m.input.View() + "\n" + rule
+	return renderDialog(styles.ColorPrimary,
+		"🔒  "+m.title,
+		m.message+"\n\n"+field,
+		"",
+		"enter submit  •  esc cancel",
+	)
 }

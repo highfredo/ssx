@@ -6,10 +6,12 @@ import (
 	"strings"
 )
 
+// Platform flags evaluated once at startup.
 const IsWindows = runtime.GOOS == "windows"
 const IsLinux = runtime.GOOS == "linux"
 const IsDarwin = runtime.GOOS == "darwin"
 
+// IsWSL reports whether the Linux binary runs under Windows Subsystem for Linux.
 var IsWSL = detectWSL()
 
 func detectWSL() bool {

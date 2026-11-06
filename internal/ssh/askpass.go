@@ -4,39 +4,38 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
+	"github.com/highfredo/ssx/internal/paths"
 	"github.com/highfredo/ssx/internal/system"
 )
 
-// configureAskpass creates a temporary askpass script with the given content,
-// sets SSH_ASKPASS / SSH_ASKPASS_REQUIRE on cmd, and returns a cleanup func.
-func configureAskpass(cmd *exec.Cmd, script string, extraEnv ...string) (func(), error) {
-	pattern := "ssx-askpass-*"
+// ensureAskpassScript writes a static, secret-free helper script into the app
+// cache directory that reads either SSX_PASSWORD or SSX_PASS_CMD from the
+// child process environment.
+func ensureAskpassScript() (string, error) {
+	if err := os.MkdirAll(paths.CacheDir(), 0o700); err != nil {
+		return "", fmt.Errorf("create cache dir: %w", err)
+	}
+
+	name := "askpass.sh"
+	script := "#!/bin/sh\nif [ -n \"$SSX_PASS_CMD\" ]; then\n  sh -c \"$SSX_PASS_CMD\"\nelse\n  printf '%s\\n' \"$SSX_PASSWORD\"\nfi\n"
 	if system.IsWindows {
-		pattern += ".bat"
+		name = "askpass.bat"
+		script = "@powershell -NoProfile -NonInteractive -Command \"if ($env:SSX_PASS_CMD) { Invoke-Expression $env:SSX_PASS_CMD } else { Write-Output $env:SSX_PASSWORD }\"\r\n"
 	}
 
-	f, err := os.CreateTemp("", pattern)
+	scriptPath := filepath.Join(paths.CacheDir(), name)
+	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+		return "", fmt.Errorf("write askpass script: %w", err)
+	}
+	return scriptPath, nil
+}
+
+func configureAskpass(cmd *exec.Cmd, extraEnv ...string) error {
+	scriptPath, err := ensureAskpassScript()
 	if err != nil {
-		return nil, fmt.Errorf("create askpass script: %w", err)
-	}
-	scriptPath := f.Name()
-	cleanup := func() { _ = os.Remove(scriptPath) }
-
-	if _, err := f.WriteString(script); err != nil {
-		_ = f.Close()
-		cleanup()
-		return nil, fmt.Errorf("write askpass script: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		cleanup()
-		return nil, fmt.Errorf("close askpass script: %w", err)
-	}
-	if !system.IsWindows {
-		if err := os.Chmod(scriptPath, 0o700); err != nil {
-			cleanup()
-			return nil, fmt.Errorf("chmod askpass script: %w", err)
-		}
+		return err
 	}
 
 	cmd.Env = append(os.Environ(),
@@ -45,34 +44,22 @@ func configureAskpass(cmd *exec.Cmd, script string, extraEnv ...string) (func(),
 		"DISPLAY=ssx:0",
 	)
 	cmd.Env = append(cmd.Env, extraEnv...)
-	return cleanup, nil
+	return nil
 }
 
 // ConfigurePassword wires SSH_ASKPASS-based password auth for an ssh command.
-func ConfigurePassword(cmd *exec.Cmd, password string) (func(), error) {
+func ConfigurePassword(cmd *exec.Cmd, password string) error {
 	if password == "" {
-		return func() {}, nil
+		return nil
 	}
-	var script string
-	if system.IsWindows {
-		script = "@powershell -NoProfile -NonInteractive -Command \"Write-Output $env:SSX_PASSWORD\"\r\n"
-	} else {
-		script = "#!/bin/sh\nprintf '%s\\n' \"$SSX_PASSWORD\"\n"
-	}
-	return configureAskpass(cmd, script, "SSX_PASSWORD="+password)
+	return configureAskpass(cmd, "SSX_PASSWORD="+password)
 }
 
 // ConfigurePasswordCommand wires SSH_ASKPASS-based auth using a shell command
 // whose stdout provides the password (e.g. "bw get password mysite").
-func ConfigurePasswordCommand(cmd *exec.Cmd, passwordCommand string) (func(), error) {
+func ConfigurePasswordCommand(cmd *exec.Cmd, passwordCommand string) error {
 	if passwordCommand == "" {
-		return func() {}, nil
+		return nil
 	}
-	var script string
-	if system.IsWindows {
-		script = "@cmd /c " + passwordCommand + "\r\n"
-	} else {
-		script = "#!/bin/sh\n" + passwordCommand + "\n"
-	}
-	return configureAskpass(cmd, script)
+	return configureAskpass(cmd, "SSX_PASS_CMD="+passwordCommand)
 }

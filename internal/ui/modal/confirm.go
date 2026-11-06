@@ -1,7 +1,6 @@
 package modal
 
 import (
-	"log/slog"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -14,110 +13,71 @@ import (
 type Confirm struct {
 	title    string
 	message  string
-	choice   int // 0 = Yes, 1 = No
+	yes      bool // currently highlighted choice
 	onResult func(confirmed bool) tea.Cmd
+	danger   bool // destructive action: warning accent
 }
 
-func OpenConfirm(title string, message string, onResult func(bool) tea.Cmd) tea.Cmd {
-	return func() tea.Msg {
-		return base.OpenModalMsg{
-			Dialog: &Confirm{title: title, message: message, choice: 0, onResult: onResult},
-		}
-	}
+// OpenConfirm returns a Cmd that opens a Confirm modal. onResult runs after
+// the modal closes with the user's answer.
+func OpenConfirm(title, message string, onResult func(bool) tea.Cmd) tea.Cmd {
+	return base.Emit(base.OpenModalMsg{
+		Dialog: &Confirm{title: title, message: message, yes: true, onResult: onResult},
+	})
 }
 
-func (m *Confirm) SetSize(width int, height int) {
-	//TODO implement me
-	slog.Debug("Confirm.SetSize called", "width", width, "height", height)
+// OpenDangerConfirm is like OpenConfirm but styled for destructive actions,
+// defaulting the highlighted choice to "No".
+func OpenDangerConfirm(title, message string, onResult func(bool) tea.Cmd) tea.Cmd {
+	return base.Emit(base.OpenModalMsg{
+		Dialog: &Confirm{title: title, message: message, yes: false, danger: true, onResult: onResult},
+	})
 }
 
+// SetSize implements base.Component; the dialog has a fixed width.
+func (m *Confirm) SetSize(_, _ int) {}
+
+// Update implements base.Component.
 func (m *Confirm) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 	key, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return m, nil
 	}
-
 	switch key.String() {
 	case "left", "h", "shift+tab":
-		m.choice = 0
+		m.yes = true
 	case "right", "l", "tab":
-		m.choice = 1
+		m.yes = false
 	case "y", "Y":
-		return m, m.confirm(true)
+		return m, m.answer(true)
 	case "n", "N", "esc":
-		return m, m.confirm(false)
+		return m, m.answer(false)
 	case "enter":
-		return m, m.confirm(m.choice == 0)
+		return m, m.answer(m.yes)
 	}
 	return m, nil
 }
 
-// confirm closes the modal and runs onResult.
-func (m *Confirm) confirm(confirmed bool) tea.Cmd {
-	closeCmd := func() tea.Msg { return base.CloseModalMsg{} }
-	return tea.Sequence(closeCmd, m.onResult(confirmed))
+// answer closes the modal and runs onResult.
+func (m *Confirm) answer(confirmed bool) tea.Cmd {
+	return tea.Sequence(closeModal, m.onResult(confirmed))
 }
 
+// View implements base.Component.
 func (m *Confirm) View() string {
-	const dialogWidth = 60
-
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(styles.ColorDanger).
-		Padding(0, 1).
-		Width(dialogWidth - 4)
-	title := titleStyle.Render("\u26a0\ufe0f  " + m.title)
-
-	msgStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E5E7EB")).
-		Width(dialogWidth - 4)
-	body := msgStyle.Render(m.message)
-
-	yesStyle := lipgloss.NewStyle().Padding(0, 2).Bold(true)
-	noStyle := lipgloss.NewStyle().Padding(0, 2).Bold(true)
-
-	if m.choice == 0 {
-		yesStyle = yesStyle.
-			Background(styles.ColorDanger).
-			Foreground(lipgloss.Color("#FFFFFF"))
-		noStyle = noStyle.
-			Background(styles.ColorBorder).
-			Foreground(lipgloss.Color("#9CA3AF"))
-	} else {
-		yesStyle = yesStyle.
-			Background(styles.ColorBorder).
-			Foreground(lipgloss.Color("#9CA3AF"))
-		noStyle = noStyle.
-			Background(styles.ColorDanger).
-			Foreground(lipgloss.Color("#FFFFFF"))
+	accent, icon := styles.ColorPrimary, "?  "
+	if m.danger {
+		accent, icon = styles.ColorWarning, "⚠  "
 	}
-
 	buttons := lipgloss.JoinHorizontal(lipgloss.Center,
-		yesStyle.Render("Yes"),
+		renderButton("Yes", m.yes, accent),
 		strings.Repeat(" ", 4),
-		noStyle.Render("No"),
+		renderButton("No", !m.yes, accent),
 	)
-	buttonsRow := lipgloss.NewStyle().Width(dialogWidth - 4).Align(lipgloss.Center).Render(buttons)
-
-	hint := lipgloss.NewStyle().
-		Foreground(styles.ColorMuted).
-		Width(dialogWidth - 4).
-		Align(lipgloss.Center).
-		Render("\u2190/\u2192 navigate  \u2022  enter confirm  \u2022  esc cancel")
-
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.ColorDanger).
-		Padding(1, 2).
-		Width(dialogWidth).
-		Render(lipgloss.JoinVertical(lipgloss.Left,
-			title,
-			"",
-			body,
-			"",
-			buttonsRow,
-			"",
-			hint,
-		))
+	return renderDialog(accent,
+		icon+m.title,
+		m.message,
+		buttons,
+		"←/→ navigate  •  enter confirm  •  esc cancel",
+	)
 }

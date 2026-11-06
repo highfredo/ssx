@@ -17,8 +17,16 @@ func Home() string {
 	if err != nil {
 		return ""
 	}
-
 	return home
+}
+
+// Shorten replaces the home directory prefix of path with "~" for display.
+func Shorten(path string) string {
+	home := Home()
+	if home != "" && strings.HasPrefix(path, home) {
+		return "~" + path[len(home):]
+	}
+	return path
 }
 
 // ExpandTilde expands the "~/" prefix to the home directory.

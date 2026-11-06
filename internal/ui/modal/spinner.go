@@ -8,45 +8,43 @@ import (
 	"github.com/highfredo/ssx/internal/ui/base"
 )
 
-var spinnerStyle = lipgloss.NewStyle().Foreground(styles.ColorPrimary)
-
-// Spinner es un modal no interactivo que muestra una animación mientras
-// una operación lenta se ejecuta en segundo plano.
-// Se cierra externamente mediante base.CloseModalMsg.
+// Spinner is a non-interactive modal that animates while a slow operation
+// runs in the background. It is closed externally with base.CloseModalMsg.
 type Spinner struct {
 	message string
 	spin    spinner.Model
 }
 
-// OpenSpinner devuelve un Cmd que abre el modal spinner.
-// El primer tick lo inicia el App cuando llama a Init() al registrar el modal.
+// OpenSpinner returns a Cmd that opens the spinner modal. The App starts the
+// tick chain by calling Init once the modal is registered.
 func OpenSpinner(message string) tea.Cmd {
 	s := &Spinner{
 		message: message,
-		spin:    spinner.New(spinner.WithSpinner(spinner.Dot), spinner.WithStyle(spinnerStyle)),
+		spin:    spinner.New(spinner.WithSpinner(spinner.Dot), spinner.WithStyle(lipgloss.NewStyle().Foreground(styles.ColorPrimary))),
 	}
-	return func() tea.Msg { return base.OpenModalMsg{Dialog: s} }
+	return base.Emit(base.OpenModalMsg{Dialog: s})
 }
 
-// Init arranca la cadena de ticks del spinner.
-// El App lo llama justo después de registrar el modal, evitando la carrera
-// donde el TickMsg llega antes de que el modal esté abierto.
+// Init starts the spinner tick chain. The App calls it right after
+// registering the modal so no TickMsg arrives before the modal is open.
 func (m *Spinner) Init() tea.Cmd {
 	return m.spin.Tick
 }
 
+// SetSize implements base.Component; the spinner has a fixed size.
 func (m *Spinner) SetSize(_, _ int) {}
 
+// Update implements base.Component.
 func (m *Spinner) Update(msg tea.Msg) (base.Component, tea.Cmd) {
 	var cmd tea.Cmd
 	m.spin, cmd = m.spin.Update(msg)
 	return m, cmd
 }
 
+// View implements base.Component.
 func (m *Spinner) View() string {
-	content := m.spin.View() + "  " + m.message
 	return styles.PanelStyle.
 		BorderForeground(styles.ColorPrimary).
 		Padding(1, 3).
-		Render(content)
+		Render(m.spin.View() + "  " + m.message)
 }
